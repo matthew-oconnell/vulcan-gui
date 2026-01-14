@@ -1,0 +1,100 @@
+.viewport-panel {
+  position: relative;
+}
+
+.viewport-panel .panel-header {
+  position: relative;
+  z-index: 10;
+}
+
+.viewport-info {
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.info-text {
+  font-size: 11px;
+  color: #858585;
+  font-weight: normal;
+}
+
+.viewport-content {
+  position: relative;
+  height: calc(100% - 37px);
+  background: linear-gradient(to bottom, #1a1a1a 0%, #0d0d0d 100%);
+}
+
+.viewport-content canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.viewport-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.overlay-corner {
+  position: absolute;
+  pointer-events: none;
+}
+
+.top-left {
+  top: 12px;
+  left: 12px;
+}
+
+.bottom-right {
+  bottom: 12px;
+  right: 12px;
+}
+
+.stats {
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #cccccc;
+  font-family: 'Courier New', monospace;
+}
+
+.stat-item {
+  margin-bottom: 2px;
+}
+
+.stat-item:last-child {
+  margin-bottom: 0;
+}
+
+.axis-indicator {
+  display: flex;
+  gap: 8px;
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.axis-label {
+  color: #cccccc;
+}
+
+.axis-label:nth-child(1) {
+  color: #ff6b6b;
+}
+
+.axis-label:nth-child(2) {
+  color: #51cf66;
+}
+
+.axis-label:nth-child(3) {
+  color: #4a9eff;
+}

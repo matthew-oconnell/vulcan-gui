@@ -1,0 +1,54 @@
+.tree-panel {
+  font-size: 13px;
+}
+
+.tree-node {
+  user-select: none;
+}
+
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background-color 0.1s ease;
+}
+
+.tree-node-content:hover {
+  background-color: #2a2d2e;
+}
+
+.tree-node-content.selected {
+  background-color: #37373d;
+}
+
+.tree-icon {
+  display: flex;
+  align-items: center;
+  color: #c5c5c5;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tree-icon-spacer {
+  width: 16px;
+}
+
+.tree-file-icon {
+  color: #c5c5c5;
+  flex-shrink: 0;
+}
+
+.tree-label {
+  color: #cccccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-children {
+  /* Children are rendered with increased depth padding */
+  display: block;
+}
