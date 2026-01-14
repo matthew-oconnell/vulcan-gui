@@ -26,11 +26,56 @@
 
 .editor-placeholder {
   color: #858585;
+  text-align: center;
+  padding: 40px 20px;
 }
 
 .placeholder-text {
-  margin-bottom: 20px;
   font-style: italic;
+}
+
+.editor-content {
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.property-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #3e3e42;
+  margin-bottom: 12px;
+}
+
+.property-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #cccccc;
+  margin: 0;
+}
+
+.property-type-badge {
+  font-size: 11px;
+  color: #858585;
+  background-color: #3e3e42;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.property-description {
+  color: #b0b0b0;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background-color: #2d2d30;
+  border-left: 3px solid #007acc;
+  border-radius: 3px;
 }
 
 .form-section {
@@ -41,6 +86,48 @@
   border: 1px solid #3e3e42;
 }
 
+
+.checkbox-group {
+  display: flex;
+  gap: 16px;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #cccccc;
+}
+
+.add-button {
+  padding: 6px 12px;
+  background-color: #0e639c;
+  border: none;
+  border-radius: 3px;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.add-button:hover {
+  background-color: #1177bb;
+}
+
+.info-box {
+  margin-top: 16px;
+  padding: 8px 12px;
+  background-color: #2d2d30;
+  border: 1px solid #3e3e42;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #b0b0b0;
+}
+
+.info-box strong {
+  color: #cccccc;
+}
 .form-section-title {
   font-size: 14px;
   font-weight: 600;
@@ -72,6 +159,11 @@
   font-family: inherit;
 }
 
+.form-input::placeholder {
+  color: #6e6e6e;
+  font-style: italic;
+}
+
 .form-input:focus {
   outline: none;
   border-color: #007acc;
@@ -81,6 +173,26 @@
 .form-checkbox {
   width: auto;
   cursor: pointer;
+}
+
+.required-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background-color: #f4877133;
+  border: 1px solid #f48771;
+  border-radius: 3px;
+  color: #f48771;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.default-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #858585;
+  font-style: italic;
 }
 
 select.form-input {
