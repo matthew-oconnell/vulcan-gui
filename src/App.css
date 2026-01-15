@@ -3,6 +3,13 @@
   height: 100vh;
   overflow: hidden;
   background-color: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container > div[data-panel-group] {
+  flex: 1;
+  min-height: 0;
 }
 
 /* Resize handles */

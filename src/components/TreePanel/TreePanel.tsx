@@ -10,6 +10,10 @@ function TreePanel() {
   const selectedId = selectedNode?.id || null
 
   useEffect(() => {
+    console.log('TreePanel - Current configData:', configData)
+  }, [configData])
+
+  useEffect(() => {
     // Fetch and build tree from schema on mount
     fetch('/input.schema.json')
       .then(response => response.json())

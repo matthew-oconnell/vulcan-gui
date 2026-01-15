@@ -29,6 +29,7 @@ interface AppState {
   addState: (state: State) => void
   updateState: (id: string, updates: Partial<State>) => void
   deleteState: (id: string) => void
+  initializeConfig: (projectConfig: any) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -161,6 +162,105 @@ export const useAppStore = create<AppState>((set) => ({
         }
       },
       selectedState: s.selectedState?.id === id ? null : s.selectedState
+    }
+  }),
+  
+  initializeConfig: (projectConfig) => set((s) => {
+    const newConfig: any = {
+      HyperSolve: {
+        'boundary conditions': [],
+        states: {}
+      }
+    }
+    
+    // Set thermodynamics based on gas model
+    if (projectConfig.gasModel === 'single-species') {
+      newConfig.HyperSolve.thermodynamics = {
+        species: ['perfect gas']
+      }
+    } else if (projectConfig.gasModel === 'multispecies') {
+      // Multispecies configuration
+      if (projectConfig.reactionType === 'edl') {
+        // EDL chemistry
+        newConfig.HyperSolve.thermodynamics = {
+          'chemical nonequilibrium': true
+        }
+        
+        if (projectConfig.planetaryBody === 'earth') {
+          // Earth air models
+          if (projectConfig.speciesModel === '5-species') {
+            newConfig.HyperSolve.thermodynamics.species = ['N2', 'O2', 'NO', 'N', 'O']
+          } else if (projectConfig.speciesModel === '7-species') {
+            newConfig.HyperSolve.thermodynamics.species = ['N2', 'O2', 'NO', 'N', 'O', 'NO+', 'e-']
+          } else if (projectConfig.speciesModel === '11-species') {
+            newConfig.HyperSolve.thermodynamics.species = ['N2', 'O2', 'NO', 'N', 'O', 'NO+', 'N2+', 'O2+', 'N+', 'O+', 'e-']
+          }
+        } else if (projectConfig.planetaryBody === 'mars') {
+          // Mars Park model (5 species)
+          newConfig.HyperSolve.thermodynamics.species = ['CO2', 'CO', 'N2', 'O2', 'NO']
+        }
+      } else if (projectConfig.reactionType === 'combustion') {
+        // Combustion chemistry
+        newConfig.HyperSolve.thermodynamics = {
+          'chemical nonequilibrium': true,
+          'reaction model filename': projectConfig.reactionModelFile || 'kinetic_data'
+        }
+        // Species will be extracted from reaction model file later
+        newConfig.HyperSolve.thermodynamics.species = []
+      } else if (projectConfig.speciesType === 'non-reacting') {
+        // Non-reacting multispecies
+        newConfig.HyperSolve.thermodynamics = {
+          'chemical nonequilibrium': false,
+          species: [] // User will add species manually
+        }
+      }
+    }
+    
+    // Set time accuracy based on time mode
+    if (projectConfig.timeMode === 'unsteady' && projectConfig.timeAccuracy) {
+      newConfig.HyperSolve['time accuracy'] = {
+        type: 'fixed timestep'
+      }
+      
+      if (projectConfig.timeAccuracy.timeStep) {
+        newConfig.HyperSolve['time accuracy'].timestep = projectConfig.timeAccuracy.timeStep
+      }
+      
+      if (projectConfig.timeAccuracy.cfl) {
+        newConfig.HyperSolve['time accuracy'].cfl = projectConfig.timeAccuracy.cfl
+      }
+      
+      if (projectConfig.timeAccuracy.scheme) {
+        // Map scheme names to schema values
+        const schemeMap: any = {
+          'bdf1': 'BDF',
+          'bdf2': 'BDF',
+          'rk4': 'ESDIRK'
+        }
+        newConfig.HyperSolve['time accuracy'].scheme = schemeMap[projectConfig.timeAccuracy.scheme]
+        
+        if (projectConfig.timeAccuracy.scheme === 'bdf1') {
+          newConfig.HyperSolve['time accuracy'].order = 1
+        } else if (projectConfig.timeAccuracy.scheme === 'bdf2') {
+          newConfig.HyperSolve['time accuracy'].order = 2
+        } else if (projectConfig.timeAccuracy.scheme === 'rk4') {
+          newConfig.HyperSolve['time accuracy'].order = 4
+        }
+      }
+    } else {
+      // Steady state - use local timestepping
+      newConfig.HyperSolve['time accuracy'] = {
+        type: 'local timestepping'
+      }
+    }
+    
+    return {
+      ...s,
+      configData: newConfig,
+      selectedNode: null,
+      selectedSurface: null,
+      selectedBC: null,
+      selectedState: null
     }
   })
 }))

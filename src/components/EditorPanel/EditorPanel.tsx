@@ -44,6 +44,20 @@ function EditorPanel() {
     deleteState
   } = useAppStore()
 
+  // Helper function to get value from configData based on node path
+  const getValueFromPath = (path: string) => {
+    const parts = path.replace('root.', '').split('.')
+    let value: any = configData
+    for (const part of parts) {
+      if (value && typeof value === 'object') {
+        value = value[part]
+      } else {
+        return undefined
+      }
+    }
+    return value
+  }
+
   const renderBCEditor = () => {
     if (!selectedBC) return null
     
@@ -584,6 +598,9 @@ function EditorPanel() {
   const renderNodeEditor = () => {
     if (!selectedNode) return null
 
+    const actualValue = getValueFromPath(selectedNode.id)
+    const displayValue = actualValue !== undefined ? actualValue : selectedNode.default
+
     return (
       <div className="editor-content">
         <div className="property-header">
@@ -599,6 +616,24 @@ function EditorPanel() {
           {selectedNode.required && (
             <div className="required-badge">Required Field</div>
           )}
+
+          {/* Debug display of actual value */}
+          <div className="info-box" style={{ marginBottom: '16px' }}>
+            <strong>Current Value:</strong>
+            <pre style={{ 
+              marginTop: '8px', 
+              padding: '8px', 
+              background: '#1e1e1e', 
+              borderRadius: '4px',
+              fontSize: '12px',
+              maxHeight: '200px',
+              overflow: 'auto'
+            }}>
+              {actualValue !== undefined 
+                ? JSON.stringify(actualValue, null, 2) 
+                : '<not set - using schema default>'}
+            </pre>
+          </div>
 
           {selectedNode.enum && selectedNode.enum.length > 0 ? (
             <div className="form-group">

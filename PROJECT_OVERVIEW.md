@@ -236,6 +236,30 @@ Vulcan CFD GUI is a web-based graphical user interface designed to streamline th
 
 ## Future Enhancements
 
+### Immediate Roadmap
+
+1. **Mesh Loading Integration (High Priority)**
+   - Implement C++ mesh loader for .csm, .egads, and .meshb files
+   - Create API interface between C++ backend and GUI frontend
+   - Load actual surface mesh geometry and metadata
+   - Replace mock surface data with real mesh-derived surfaces
+   - Extract mesh boundary tags and names from loaded geometry
+   - Populate availableSurfaces from mesh data instead of hardcoded array
+
+2. **Dynamic Schema Parsing**
+   - Auto-extract BC types from schema's Boundary Condition oneOf array
+   - Auto-extract state modes from State oneOf definitions
+   - Eliminate hardcoded BC_TYPES and state wizard modes
+   - Generate type-specific field displays dynamically
+
+3. **Configuration Persistence**
+   - Implement Save functionality to export configuration as JSON
+   - Implement Open functionality to load saved configurations
+   - Add auto-save with dirty state tracking
+   - Implement Validate against JSON schema
+
+### Long-term Enhancements
+
 - **Import existing configurations**: Load previous simulation setups
 - **Configuration templates**: Pre-defined setups for common cases
 - **Mesh quality visualization**: Color-coded quality metrics
@@ -244,6 +268,7 @@ Vulcan CFD GUI is a web-based graphical user interface designed to streamline th
 - **Collaborative features**: Multi-user editing sessions
 - **Solver integration**: Direct job submission and monitoring
 - **Results preview**: Basic post-processing visualization
+- **Sketch-2-Solution Integration**: Adaptive mesh refinement workflow
 
 ## Success Criteria
 
