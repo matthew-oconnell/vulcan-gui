@@ -154,8 +154,7 @@ function Scene() {
       {/* Camera controls */}
       <OrbitControls 
         makeDefault
-        enableDamping
-        dampingFactor={0.05}
+        enableDamping={false}
         rotateSpeed={0.5}
         zoomSpeed={0.8}
       />
