@@ -1,7 +1,127 @@
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Grid, Box, Sphere } from '@react-three/drei'
+import { OrbitControls, Grid } from '@react-three/drei'
 import { Box as BoxIcon, Maximize2, Camera } from 'lucide-react'
+import { useAppStore } from '../../store/appStore'
+import { Surface } from '../../types/surface'
+import { useState, useRef } from 'react'
+import * as THREE from 'three'
 import './Viewport3D.css'
+
+// Sample surfaces with metadata
+const sampleSurfaces: Surface[] = [
+  {
+    id: 'surface-1',
+    name: 'Inlet',
+    metadata: { id: 'surface-1', tag: 1, tagName: 'inlet' }
+  },
+  {
+    id: 'surface-2',
+    name: 'Outlet',
+    metadata: { id: 'surface-2', tag: 2, tagName: 'outlet' }
+  },
+  {
+    id: 'surface-3',
+    name: 'Wall',
+    metadata: { id: 'surface-3', tag: 3, tagName: 'wall' }
+  }
+]
+
+function ClickableSurface({ surface }: { surface: Surface }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+  const { selectedSurface, setSelectedSurface, selectedBC, soloBC } = useAppStore()
+  const [hovered, setHovered] = useState(false)
+  
+  const isSelected = selectedSurface?.id === surface.id
+  
+  // Check if this surface belongs to the selected BC
+  const belongsToSelectedBC = selectedBC ? (() => {
+    const tags = selectedBC['mesh boundary tags']
+    const surfaceTag = surface.metadata.tag
+    
+    if (Array.isArray(tags)) {
+      return (tags as any[]).includes(surfaceTag) || (tags as any[]).includes(String(surfaceTag))
+    } else if (typeof tags === 'number') {
+      return tags === surfaceTag
+    } else if (typeof tags === 'string') {
+      return tags.split(',').map(s => parseInt(s.trim(), 10)).includes(surfaceTag)
+    }
+    return false
+  })() : false
+  
+  // Check if this surface belongs to the soloed BC
+  const belongsToSoloBC = soloBC ? (() => {
+    const tags = soloBC['mesh boundary tags']
+    const surfaceTag = surface.metadata.tag
+    
+    if (Array.isArray(tags)) {
+      return (tags as any[]).includes(surfaceTag) || (tags as any[]).includes(String(surfaceTag))
+    } else if (typeof tags === 'number') {
+      return tags === surfaceTag
+    } else if (typeof tags === 'string') {
+      return tags.split(',').map(s => parseInt(s.trim(), 10)).includes(surfaceTag)
+    }
+    return false
+  })() : true // Show all surfaces if no BC is soloed
+  
+  // Don't render if BC is soloed and this surface doesn't belong to it
+  if (soloBC && !belongsToSoloBC) {
+    return null
+  }
+  
+  const handleClick = (e: any) => {
+    e.stopPropagation()
+    setSelectedSurface(surface)
+  }
+  
+  // Position based on surface ID
+  const position: [number, number, number] = surface.id === 'surface-1' ? [0, 0.5, 0] : 
+                                              surface.id === 'surface-2' ? [2, 0.5, 0] : 
+                                              [-2, 0.25, 0]
+  
+  const size: [number, number, number] = surface.id === 'surface-1' ? [2, 1, 1] : 
+                                          surface.id === 'surface-2' ? [1, 1, 1] : 
+                                          [1.5, 0.5, 1.5]
+  
+  const baseColor = surface.id === 'surface-1' ? '#4a9eff' : 
+                    surface.id === 'surface-2' ? '#ff6b6b' : 
+                    '#51cf66'
+  
+  // Determine color based on state
+  let color = baseColor
+  let emissive = '#000000'
+  let emissiveIntensity = 0
+  
+  if (isSelected) {
+    color = '#ffd700' // Gold for direct selection
+    emissive = '#aa8800'
+    emissiveIntensity = 0.5
+  } else if (belongsToSelectedBC) {
+    color = '#ff9800' // Orange for BC membership
+    emissive = '#cc6600'
+    emissiveIntensity = 0.3
+  } else if (hovered) {
+    color = '#ffffff'
+    emissive = '#444444'
+    emissiveIntensity = 0.2
+  }
+  
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      onClick={handleClick}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+    >
+      <boxGeometry args={size} />
+      <meshStandardMaterial 
+        color={color}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+      />
+    </mesh>
+  )
+}
 
 function Scene() {
   return (
@@ -11,18 +131,10 @@ function Scene() {
       <directionalLight position={[10, 10, 5]} intensity={1} />
       <directionalLight position={[-10, -10, -5]} intensity={0.3} />
 
-      {/* Sample mesh - placeholder for actual CFD mesh */}
-      <group>
-        <Box args={[2, 1, 1]} position={[0, 0.5, 0]}>
-          <meshStandardMaterial color="#4a9eff" wireframe={false} />
-        </Box>
-        <Sphere args={[0.5, 32, 32]} position={[2, 0.5, 0]}>
-          <meshStandardMaterial color="#ff6b6b" />
-        </Sphere>
-        <Box args={[1.5, 0.5, 1.5]} position={[-2, 0.25, 0]}>
-          <meshStandardMaterial color="#51cf66" />
-        </Box>
-      </group>
+      {/* Clickable surfaces */}
+      {sampleSurfaces.map((surface) => (
+        <ClickableSurface key={surface.id} surface={surface} />
+      ))}
 
       {/* Ground grid */}
       <Grid

@@ -1,0 +1,195 @@
+# When Schema Changes - Update Checklist
+
+This document tracks hardcoded values that may need updating when `input.schema.json` is updated.
+
+## 🔍 What to Check
+
+### 1. Boundary Condition Types
+**File:** `src/components/EditorPanel/EditorPanel.tsx` (lines ~7-22)
+
+**Hardcoded Array:**
+```typescript
+const BC_TYPES = [
+  'dirichlet',
+  'strongly enforced dirichlet',
+  'riemann',
+  // ... etc
+]
+```
+
+**How to Update:**
+1. Look in schema at: `definitions["Boundary Condition"].oneOf[]`
+2. Each entry has a `$ref` pointing to a BC definition (e.g., `"#/definitions/Dirichlet"`)
+3. Each BC definition has a `type.enum` array with the type string
+4. Add any new BC type strings to the `BC_TYPES` array
+5. Remove any deprecated BC types
+
+**Example from Schema:**
+```json
+"Dirichlet": {
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["dirichlet"]  // ← This is the string we need
+    }
+  }
+}
+```
+
+---
+
+### 2. BC Type-Specific Fields
+**File:** `src/components/EditorPanel/EditorPanel.tsx` (renderBCEditor function)
+
+**Hardcoded Logic:**
+```typescript
+{(selectedBC.type === 'dirichlet' || 
+  selectedBC.type === 'strongly enforced dirichlet' ||
+  selectedBC.type === 'subsonic inflow total conditions') && (
+  <div className="form-group">
+    <label className="form-label">State Name</label>
+    // ... state field
+  </div>
+)}
+```
+
+**How to Update:**
+1. Check each BC definition in the schema for its `required` and `properties` fields
+2. If a BC requires a `state` field, add its type to the conditional
+3. Add new conditional blocks for other BC-specific required fields
+
+**Common Required Fields to Watch:**
+- `state` - Reference to a physical state
+- `mesh boundary tags` - Always present
+- BC-specific properties (varies by type)
+
+---
+
+### 3. State Definition Modes
+**File:** `src/components/EditorPanel/StateWizard.tsx`
+
+**Hardcoded Wizard Options:**
+- "State from Static Conditions" → Mach + Static Temp + Static Pressure
+- "State from Total Conditions" → Mach + Total Temp + Total Pressure
+- "State from Mach and Densities" → Mach + Speed + Temperature
+- "It's Complicated" → Manual entry
+
+**How to Update:**
+1. Look in schema at: `definitions["State"].oneOf[]`
+2. Each entry represents a different valid state definition
+3. Check the `required` array for each oneOf option
+4. Update wizard modes if new state definition types are added
+5. Update field validation in `isValid()` function
+
+**Example from Schema:**
+```json
+{
+  "description": "Physical state description.",
+  "required": ["mach number", "temperature", "pressure"],
+  "properties": {
+    "mach number": { "type": "number" },
+    "temperature": { ... },
+    "pressure": { ... }
+  }
+}
+```
+
+---
+
+### 4. State Property Editor
+**File:** `src/components/EditorPanel/EditorPanel.tsx` (renderStateEditor function)
+
+**Current Fields:**
+- State Name
+- Mach Number
+- Temperature
+- Pressure
+- Angle of Attack
+- Angle of Yaw
+
+**How to Update:**
+1. Review all properties across all `State` oneOf options
+2. Add new common properties as form fields
+3. Consider adding conditional fields for specific state types (similar to BC editor)
+
+---
+
+### 5. TypeScript Type Definitions
+**File:** `src/types/config.ts`
+
+**Hardcoded Interfaces:**
+```typescript
+export interface BoundaryCondition {
+  id: string
+  name?: string
+  type: string
+  'mesh boundary tags'?: MeshBoundaryTags
+  state?: string
+  [key: string]: any // Catch-all for BC-specific properties
+}
+
+export interface State {
+  id: string
+  name: string
+  'mach number'?: number
+  temperature?: number
+  pressure?: number
+  // ... etc
+}
+```
+
+**How to Update:**
+1. Add new strongly-typed optional fields if certain properties become very common
+2. The `[key: string]: any` catch-all handles most schema changes automatically
+3. Only update if you want TypeScript autocomplete for new fields
+
+---
+
+## 🧪 Testing After Schema Updates
+
+1. **Verify Tree Renders:** Schema parser should automatically handle new properties
+2. **Test BC Creation:** Try creating each BC type, ensure type dropdown shows all options
+3. **Test State Wizard:** Verify required fields match schema for each wizard mode
+4. **Check Required Fields:** Ensure `*` indicators appear on newly required fields
+5. **Test Enum Fields:** Any new enum properties should show as dropdowns automatically
+
+---
+
+## ✅ What's Automatic (No Changes Needed)
+
+These adapt automatically when the schema changes:
+
+- ✅ Tree structure and node hierarchy
+- ✅ Property descriptions and tooltips
+- ✅ Enum value dropdowns (for non-BC-type enums)
+- ✅ Required field indicators (`*`)
+- ✅ Default values
+- ✅ $ref resolution
+- ✅ Basic type-specific inputs (string, number, boolean, array, object)
+
+---
+
+## 📋 Quick Checklist
+
+When you get a new `input.schema.json`:
+
+- [ ] Check `Boundary Condition` oneOf array for new/removed BC types
+- [ ] Update `BC_TYPES` array in EditorPanel.tsx
+- [ ] Check each BC definition for required `state` field
+- [ ] Update BC type-specific field conditionals
+- [ ] Review `State` oneOf array for new state definition modes
+- [ ] Update StateWizard options if needed
+- [ ] Test BC creation and state wizard
+- [ ] Verify all form fields render correctly
+
+---
+
+## 💡 Future Improvements
+
+To make this more automatic:
+1. Parse BC types from schema's `Boundary Condition.oneOf` array at runtime
+2. Dynamically build state wizard modes from `State.oneOf` required arrays
+3. Auto-generate type-specific field logic from BC definitions' required arrays
+4. Use TypeScript code generation to create interfaces from schema
+
+For now, manual updates are simpler and more maintainable for a prototype.

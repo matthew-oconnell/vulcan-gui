@@ -101,7 +101,10 @@
 }
 
 .add-button {
-  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
   background-color: #0e639c;
   border: none;
   border-radius: 3px;
@@ -109,10 +112,21 @@
   font-size: 12px;
   cursor: pointer;
   transition: background-color 0.1s ease;
+  width: 100%;
+  justify-content: center;
 }
 
 .add-button:hover {
   background-color: #1177bb;
+}
+
+.delete-button {
+  background-color: transparent;
+  color: #f48771;
+}
+
+.delete-button:hover {
+  background-color: rgba(244, 135, 113, 0.1);
 }
 
 .info-box {

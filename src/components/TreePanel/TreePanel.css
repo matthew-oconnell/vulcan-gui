@@ -46,9 +46,6 @@
   flex-shrink: 0;
 }
 
-  flex: 1;
-}
-
 .required-indicator {
   color: #f48771;
   margin-left: 2px;
