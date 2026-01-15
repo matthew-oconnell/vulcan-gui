@@ -172,13 +172,23 @@ function EditorPanel() {
             selectedBC.type === 'subsonic inflow total conditions') && (
             <div className="form-group">
               <label className="form-label">State Name</label>
-              <input 
-                type="text" 
+              <select 
                 className="form-input" 
                 value={selectedBC.state || ''}
-                onChange={(e) => updateBoundaryCondition(selectedBC.id, { state: e.target.value })}
-                placeholder="Enter state name..."
-              />
+                onChange={(e) => {
+                  if (e.target.value === '__CREATE_NEW__') {
+                    setShowStateWizard(true)
+                  } else {
+                    updateBoundaryCondition(selectedBC.id, { state: e.target.value })
+                  }
+                }}
+              >
+                <option value="">Select state...</option>
+                <option value="__CREATE_NEW__">Create New State...</option>
+                {Object.keys(configData.HyperSolve?.states || {}).map((stateName) => (
+                  <option key={stateName} value={stateName}>{stateName}</option>
+                ))}
+              </select>
               <span className="default-hint">Reference to a defined state</span>
             </div>
           )}
