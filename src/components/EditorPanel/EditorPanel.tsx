@@ -8,19 +8,42 @@ import './EditorPanel.css'
 // List of BC types from the schema
 const BC_TYPES = [
   'dirichlet',
-  'strongly enforced dirichlet',
+  'dirichlet profile',
+  'strong dirichlet',
   'riemann',
   'extrapolation',
-  'viscous wall',
-  'symmetry',
   'slip wall',
   'tangent flow',
   'constant temperature',
-  'subsonic inflow total conditions',
-  'supersonic outflow (vacuum)',
-  'fixed subsonic inflow',
+  'weak constant temperature',
+  'weak radiative equilibrium temperature',
+  'symmetry',
+  'weak symmetry',
+  'no slip',
+  'wall matching',
+  'weak no slip',
   'axisymmetric pole',
-  'back pressure'
+  'back pressure',
+  'mms',
+  'strong mms',
+  'strong-weak hns mms',
+  'maxwell mms',
+  'gol mms',
+  'mass flux inflow',
+  'subsonic inflow total',
+  'supersonic outflow',
+  'fixed subsonic inflow',
+  'engine inlet',
+  'strong particle wall',
+  'particle wall',
+  'marshak',
+  'strong marshak',
+  'weak constant intensity',
+  'constant intensity',
+  'perfect conductor',
+  'insulated wall',
+  'freestream em',
+  'outflow em'
 ]
 
 function EditorPanel() {
@@ -182,8 +205,9 @@ function EditorPanel() {
           </div>
 
           {(selectedBC.type === 'dirichlet' || 
-            selectedBC.type === 'strongly enforced dirichlet' ||
-            selectedBC.type === 'subsonic inflow total conditions') && (
+            selectedBC.type === 'strong dirichlet' ||
+            selectedBC.type === 'riemann' ||
+            selectedBC.type === 'mass flux inflow') && (
             <div className="form-group">
               <label className="form-label">State Name</label>
               <select 

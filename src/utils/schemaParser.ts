@@ -21,6 +21,7 @@ interface SchemaProperty {
   $ref?: string
   oneOf?: SchemaProperty[]
   anyOf?: SchemaProperty[]
+  allOf?: SchemaProperty[]
   enum?: any[]
   hidden?: boolean
   required?: string[]
@@ -104,6 +105,40 @@ function createNodeFromProperty(
       required,
       schemaType: property.$ref
     }
+  }
+
+  // Handle allOf - merge all schemas together
+  if (property.allOf) {
+    const merged: SchemaProperty = {}
+    
+    for (const schema of property.allOf) {
+      let resolvedSchema = schema
+      
+      // Resolve $ref if present
+      if (schema.$ref) {
+        const resolved = resolveReference(schema.$ref)
+        if (resolved) {
+          resolvedSchema = resolved
+        }
+      }
+      
+      // Merge properties
+      if (resolvedSchema.properties) {
+        merged.properties = { ...merged.properties, ...resolvedSchema.properties }
+      }
+      
+      // Merge required arrays
+      if (resolvedSchema.required) {
+        merged.required = [...(merged.required || []), ...resolvedSchema.required]
+      }
+      
+      // Copy other properties from first schema
+      if (!merged.type && resolvedSchema.type) merged.type = resolvedSchema.type
+      if (!merged.description && resolvedSchema.description) merged.description = resolvedSchema.description
+      if (!merged.default && resolvedSchema.default) merged.default = resolvedSchema.default
+    }
+    
+    return createNodeFromProperty(key, merged, path, required)
   }
 
   // Handle oneOf/anyOf - use the first option for now
