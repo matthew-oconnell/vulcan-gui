@@ -10,7 +10,7 @@ function TreePanel() {
   const [showPropertyDialog, setShowPropertyDialog] = useState(false)
   const [dialogNode, setDialogNode] = useState<TreeNode | null>(null)
   const [schema, setSchema] = useState<any>(null)
-  const { selectedNode, setSelectedNode, selectedBC, setSelectedBC, selectedState, setSelectedState, configData } = useAppStore()
+  const { selectedNode, setSelectedNode, selectedBC, setSelectedBC, selectedState, setSelectedState, selectedViz, setSelectedViz, configData } = useAppStore()
   const selectedId = selectedNode?.id || null
 
   useEffect(() => {
@@ -99,6 +99,28 @@ function TreePanel() {
           expanded: stateNodes.length > 0 ? true : node.expanded
         }
       }
+
+      // Check if this is the visualization array
+      if (node.id === 'root.visualization' && node.type === 'array') {
+        const visualizations = configData.visualization || []
+        
+        // Create child nodes for each visualization instance
+        const vizNodes: TreeNode[] = visualizations.map((viz: any, index: number) => ({
+          id: `${node.id}[Viz-${index}]`,
+          label: viz.filename || `Visualization ${index + 1}`,
+          type: 'object' as const,
+          description: `${viz.type} visualization: ${viz.filename || 'unnamed'}`,
+          vizData: viz, // Attach the actual visualization data
+          vizIndex: index, // Store the index for updates
+          expanded: false
+        }))
+        
+        return {
+          ...node,
+          children: vizNodes.length > 0 ? vizNodes : node.children,
+          expanded: vizNodes.length > 0 ? true : node.expanded
+        }
+      }
       
       // Recursively enhance children
       if (node.children) {
@@ -115,10 +137,13 @@ function TreePanel() {
     return enhancedNodes.map(node => {
       const isBCNode = node.id.includes('[BC-')
       const isStateNode = node.id.includes('[State-')
+      const isVizNode = node.id.includes('[Viz-')
       const isSelected = isBCNode 
         ? selectedBC && node.id.includes(selectedBC.id)
         : isStateNode
         ? selectedState && node.id.includes(selectedState.id)
+        : isVizNode
+        ? selectedViz && node.id.includes(`[Viz-${selectedViz.index}]`)
         : selectedId === node.id
       
       return (
@@ -131,13 +156,15 @@ function TreePanel() {
                 setSelectedBC((node as any).bcData)
               } else if (isStateNode && (node as any).stateData) {
                 setSelectedState((node as any).stateData)
+              } else if (isVizNode && (node as any).vizData) {
+                setSelectedViz({ data: (node as any).vizData, index: (node as any).vizIndex })
               } else {
                 setSelectedNode(node)
               }
             }}
             onDoubleClick={() => {
-              // Open property dialog on double-click for object nodes (not BC/State instances)
-              if (!isBCNode && !isStateNode && node.type === 'object') {
+              // Open property dialog on double-click for object nodes (not BC/State/Viz instances)
+              if (!isBCNode && !isStateNode && !isVizNode && node.type === 'object') {
                 setDialogNode(node)
                 setShowPropertyDialog(true)
               }

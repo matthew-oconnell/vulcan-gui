@@ -5,7 +5,9 @@ import { BoundaryCondition } from '../../types/config'
 import StateWizard from './StateWizard'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
 import PropertyEditorDialog from '../PropertyEditorDialog/PropertyEditorDialog'
+import VisualizationDialog from '../VisualizationDialog/VisualizationDialog'
 import { loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
+import { calculateAreaWeightedNormal } from '../../utils/surfaceUtils'
 import './EditorPanel.css'
 
 interface SchemaProperty {
@@ -73,6 +75,9 @@ function EditorPanel() {
   const [showStateWizard, setShowStateWizard] = useState(false)
   const [showBCDialog, setShowBCDialog] = useState(false)
   const [showPropertyDialog, setShowPropertyDialog] = useState(false)
+  const [showVizDialog, setShowVizDialog] = useState(false)
+  const [normalPreset, setNormalPreset] = useState<string>('custom')
+  const [selectedSurfaceForNormal, setSelectedSurfaceForNormal] = useState<string>('')
   const [schema, setSchema] = useState<Schema | null>(null)
   const [availableBCTypes, setAvailableBCTypes] = useState<string[]>(BC_TYPES)
   
@@ -95,9 +100,12 @@ function EditorPanel() {
     selectedSurface, 
     selectedBC,
     selectedState,
+    selectedViz,
+    setSelectedViz,
     soloBC,
     setSoloBC,
     configData,
+    setConfigData,
     availableSurfaces,
     addBoundaryCondition, 
     updateBoundaryCondition,
@@ -562,8 +570,350 @@ function EditorPanel() {
     )
   }
 
+  const renderVisualizationArrayEditor = () => {
+    const visualizations = configData.visualization || []
+    
+    const handleAddVisualization = () => {
+      setShowVizDialog(true)
+    }
+    
+    return (
+      <div className="editor-content">
+        <div className="property-header">
+          <h3 className="property-title">Visualization</h3>
+          <span className="property-type-badge">array</span>
+        </div>
+        
+        <p className="property-description">
+          Configure visualization outputs for sampling the flow field solution at various locations and surfaces.
+        </p>
+
+        <div className="form-section">
+          <button className="add-button" onClick={handleAddVisualization}>
+            <Plus size={16} /> Add Visualization
+          </button>
+          
+          <div className="info-box">
+            {visualizations.length === 0 ? (
+              'No visualizations defined. Click above to add one.'
+            ) : (
+              `${visualizations.length} visualization(s) defined. Select one from the tree to edit.`
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderVisualizationEditor = () => {
+    if (!selectedViz) return null
+    
+    const viz = selectedViz.data
+    const vizIndex = selectedViz.index
+    
+    const handleUpdate = (updates: any) => {
+      const updatedConfig = { ...configData }
+      if (!updatedConfig.visualization) return
+      
+      updatedConfig.visualization[vizIndex] = {
+        ...updatedConfig.visualization[vizIndex],
+        ...updates
+      }
+      setConfigData(updatedConfig)
+      
+      // Update the selected viz reference
+      setSelectedViz({ data: updatedConfig.visualization[vizIndex], index: vizIndex })
+    }
+    
+    const handleDelete = () => {
+      const updatedConfig = { ...configData }
+      if (!updatedConfig.visualization) return
+      
+      updatedConfig.visualization.splice(vizIndex, 1)
+      setConfigData(updatedConfig)
+      setSelectedViz(null)
+    }
+    
+    return (
+      <div className="editor-content">
+        <div className="property-header">
+          <h3 className="property-title">Visualization</h3>
+          <span className="property-type-badge">{viz.type}</span>
+          <button 
+            className="icon-button delete-button"
+            onClick={handleDelete}
+            title="Delete Visualization"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+        
+        <p className="property-description">
+          {viz.type} visualization output
+        </p>
+
+        <div className="form-section">
+          <div className="form-group">
+            <label className="form-label">Filename *</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              value={viz.filename || ''}
+              onChange={(e) => handleUpdate({ filename: e.target.value })}
+              placeholder="output.vtk"
+            />
+          </div>
+
+          {viz.type === 'point' && viz.location && (
+            <div className="form-group">
+              <label className="form-label">Location [x, y, z]</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={viz.location[0] || 0}
+                  onChange={(e) => handleUpdate({ location: [Number(e.target.value), viz.location[1], viz.location[2]] })}
+                  placeholder="x"
+                />
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={viz.location[1] || 0}
+                  onChange={(e) => handleUpdate({ location: [viz.location[0], Number(e.target.value), viz.location[2]] })}
+                  placeholder="y"
+                />
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={viz.location[2] || 0}
+                  onChange={(e) => handleUpdate({ location: [viz.location[0], viz.location[1], Number(e.target.value)] })}
+                  placeholder="z"
+                />
+              </div>
+            </div>
+          )}
+
+          {viz.type === 'line' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Start Point (a) [x, y, z]</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <input type="number" className="form-input" value={viz.a?.[0] || 0} onChange={(e) => handleUpdate({ a: [Number(e.target.value), viz.a[1], viz.a[2]] })} placeholder="x" />
+                  <input type="number" className="form-input" value={viz.a?.[1] || 0} onChange={(e) => handleUpdate({ a: [viz.a[0], Number(e.target.value), viz.a[2]] })} placeholder="y" />
+                  <input type="number" className="form-input" value={viz.a?.[2] || 0} onChange={(e) => handleUpdate({ a: [viz.a[0], viz.a[1], Number(e.target.value)] })} placeholder="z" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">End Point (b) [x, y, z]</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  <input type="number" className="form-input" value={viz.b?.[0] || 0} onChange={(e) => handleUpdate({ b: [Number(e.target.value), viz.b[1], viz.b[2]] })} placeholder="x" />
+                  <input type="number" className="form-input" value={viz.b?.[1] || 0} onChange={(e) => handleUpdate({ b: [viz.b[0], Number(e.target.value), viz.b[2]] })} placeholder="y" />
+                  <input type="number" className="form-input" value={viz.b?.[2] || 0} onChange={(e) => handleUpdate({ b: [viz.b[0], viz.b[1], Number(e.target.value)] })} placeholder="z" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {viz.type === 'plane' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Normal:</label>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                  <button
+                    className={`add-button ${normalPreset === 'x-normal' ? '' : ''}`}
+                    style={{ 
+                      padding: '4px 8px', 
+                      fontSize: '11px', 
+                      backgroundColor: normalPreset === 'x-normal' ? '#4a9eff' : '#3a3a3a',
+                      color: '#fff',
+                      border: '1px solid #555',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      minWidth: '28px',
+                      maxWidth: '32px'
+                    }}
+                    onClick={() => {
+                      setNormalPreset('x-normal')
+                      handleUpdate({ normal: [1, 0, 0] })
+                    }}
+                    title="X Normal (1, 0, 0)"
+                  >
+                    X
+                  </button>
+                  <button
+                    className={`add-button ${normalPreset === 'y-normal' ? '' : ''}`}
+                    style={{ 
+                      padding: '4px 8px', 
+                      fontSize: '11px', 
+                      backgroundColor: normalPreset === 'y-normal' ? '#4a9eff' : '#3a3a3a',
+                      color: '#fff',
+                      border: '1px solid #555',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      minWidth: '28px',
+                      maxWidth: '32px'
+                    }}
+                    onClick={() => {
+                      setNormalPreset('y-normal')
+                      handleUpdate({ normal: [0, 1, 0] })
+                    }}
+                    title="Y Normal (0, 1, 0)"
+                  >
+                    Y
+                  </button>
+                  <button
+                    className={`add-button ${normalPreset === 'z-normal' ? '' : ''}`}
+                    style={{ 
+                      padding: '4px 8px', 
+                      fontSize: '11px', 
+                      backgroundColor: normalPreset === 'z-normal' ? '#4a9eff' : '#3a3a3a',
+                      color: '#fff',
+                      border: '1px solid #555',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      minWidth: '28px',
+                      maxWidth: '32px'
+                    }}
+                    onClick={() => {
+                      setNormalPreset('z-normal')
+                      handleUpdate({ normal: [0, 0, 1] })
+                    }}
+                    title="Z Normal (0, 0, 1)"
+                  >
+                    Z
+                  </button>
+                  <select
+                    className="form-input"
+                    style={{ flex: '1 1 auto', minWidth: 0 }}
+                    value={selectedSurfaceForNormal}
+                    onChange={(e) => {
+                      const surfaceId = e.target.value
+                      setSelectedSurfaceForNormal(surfaceId)
+                      
+                      if (surfaceId) {
+                        setNormalPreset('surface-normal')
+                        const surface = availableSurfaces.find(s => s.id === surfaceId)
+                        if (surface) {
+                          const normal = calculateAreaWeightedNormal(surface)
+                          handleUpdate({ normal })
+                        }
+                      } else {
+                        setNormalPreset('custom')
+                      }
+                    }}
+                  >
+                    <option value="">Normal from surface...</option>
+                    {availableSurfaces.map(surface => (
+                      <option key={surface.id} value={surface.id}>
+                        {surface.name || surface.metadata?.tagName || `Tag ${surface.metadata?.tag}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">[x, y, z]:</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '4px' }}>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ padding: '4px 8px', fontSize: '12px' }}
+                    value={viz.normal?.[0] || 0} 
+                    onChange={(e) => {
+                      setNormalPreset('custom')
+                      setSelectedSurfaceForNormal('')
+                      handleUpdate({ normal: [Number(e.target.value), viz.normal[1], viz.normal[2]] })
+                    }} 
+                    placeholder="x" 
+                  />
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ padding: '4px 8px', fontSize: '12px' }}
+                    value={viz.normal?.[1] || 0} 
+                    onChange={(e) => {
+                      setNormalPreset('custom')
+                      setSelectedSurfaceForNormal('')
+                      handleUpdate({ normal: [viz.normal[0], Number(e.target.value), viz.normal[2]] })
+                    }} 
+                    placeholder="y" 
+                  />
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ padding: '4px 8px', fontSize: '12px' }}
+                    value={viz.normal?.[2] || 0} 
+                    onChange={(e) => {
+                      setNormalPreset('custom')
+                      setSelectedSurfaceForNormal('')
+                      handleUpdate({ normal: [viz.normal[0], viz.normal[1], Number(e.target.value)] })
+                    }} 
+                    placeholder="z" 
+                  />
+                </div>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Center:</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '4px' }}>
+                  <input type="number" className="form-input" value={viz.center?.[0] || 0} onChange={(e) => handleUpdate({ center: [Number(e.target.value), viz.center?.[1] || 0, viz.center?.[2] || 0] })} placeholder="x" />
+                  <input type="number" className="form-input" value={viz.center?.[1] || 0} onChange={(e) => handleUpdate({ center: [viz.center?.[0] || 0, Number(e.target.value), viz.center?.[2] || 0] })} placeholder="y" />
+                  <input type="number" className="form-input" value={viz.center?.[2] || 0} onChange={(e) => handleUpdate({ center: [viz.center?.[0] || 0, viz.center?.[1] || 0, Number(e.target.value)] })} placeholder="z" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {viz.type === 'sphere' && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Radius</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={viz.radius || 0}
+                  onChange={(e) => handleUpdate({ radius: Number(e.target.value) })}
+                  min="0"
+                  step="0.1"
+                />
+              </div>
+              {viz.center && (
+                <div className="form-group">
+                  <label className="form-label">Center [x, y, z]</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    <input type="number" className="form-input" value={viz.center[0] || 0} onChange={(e) => handleUpdate({ center: [Number(e.target.value), viz.center[1], viz.center[2]] })} placeholder="x" />
+                    <input type="number" className="form-input" value={viz.center[1] || 0} onChange={(e) => handleUpdate({ center: [viz.center[0], Number(e.target.value), viz.center[2]] })} placeholder="y" />
+                    <input type="number" className="form-input" value={viz.center[2] || 0} onChange={(e) => handleUpdate({ center: [viz.center[0], viz.center[1], Number(e.target.value)] })} placeholder="z" />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {viz['iteration frequency'] !== undefined && (
+            <div className="form-group">
+              <label className="form-label">Iteration Frequency</label>
+              <input 
+                type="number" 
+                className="form-input" 
+                value={viz['iteration frequency'] || -1}
+                onChange={(e) => handleUpdate({ 'iteration frequency': Number(e.target.value) })}
+                placeholder="-1"
+              />
+              <span className="default-hint">-1 means use checkpoint frequency</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const renderEditor = () => {
-    // Priority: State > BC > Node
+    // Priority: Viz > State > BC > Node
+    if (selectedViz) {
+      return renderVisualizationEditor()
+    }
     if (selectedState) {
       return renderStateEditor()
     }
@@ -578,6 +928,10 @@ function EditorPanel() {
       // Check if this is the states object node
       if (selectedNode.id === 'root.HyperSolve.states') {
         return renderStatesObjectEditor()
+      }
+      // Check if this is the visualization array node
+      if (selectedNode.id === 'root.visualization') {
+        return renderVisualizationArrayEditor()
       }
       return renderNodeEditor()
     }
@@ -797,6 +1151,13 @@ function EditorPanel() {
           node={selectedNode}
           schema={schema}
           configData={configData}
+        />
+      )}
+
+      {showVizDialog && (
+        <VisualizationDialog
+          isOpen={showVizDialog}
+          onClose={() => setShowVizDialog(false)}
         />
       )}
     </div>

@@ -83,7 +83,67 @@ const BC_TYPES_WITH_WALL_TEMP = [
 
 ---
 
-### 3. State Definition Modes
+### 4. Visualization Types
+**File:** `src/components/VisualizationDialog/VisualizationDialog.tsx` (lines ~8-16)
+
+**Hardcoded Array:**
+```typescript
+const VISUALIZATION_TYPES = [
+  'point',
+  'line',
+  'plane',
+  'sphere',
+  'boundary',
+  'volume',
+  'volume-debug'
+]
+```
+
+**Hardcoded Descriptions:**
+```typescript
+const VIZ_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'point': 'Sample the solution at a specific point in the domain',
+  'line': 'Sample the solution along a line segment',
+  // ... etc
+}
+```
+
+**How to Update:**
+1. Look in schema at: `definitions["Visualization"].anyOf[]`
+2. Each entry has a `$ref` pointing to a visualization definition (e.g., `"#/definitions/Point Sample"`)
+3. Each definition has a `type.enum` array with the type string
+4. Add any new visualization type strings to the `VISUALIZATION_TYPES` array
+5. Add descriptions to `VIZ_TYPE_DESCRIPTIONS` from each definition's `description` field
+6. Remove any deprecated visualization types
+
+**Example from Schema:**
+```json
+"Point Sample": {
+  "description": "Visualization options for sampling a line in the flow field solution.",
+  "required": ["type", "filename", "location"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["point"]  // ← This is the string we need
+    }
+  }
+}
+```
+
+**Type-Specific Required Fields:**
+The dialog has hardcoded form fields for each visualization type:
+- `point`: location [x, y, z]
+- `line`: a [x, y, z], b [x, y, z], optional crinkle
+- `plane`: normal [x, y, z], optional center, optional crinkle
+- `sphere`: radius, optional center, optional crinkle
+- `boundary`: mesh boundary tags
+- `volume`, `volume-debug`: no additional fields
+
+When the schema adds new visualization types or changes required fields, update the switch statement in `handleCreate()` and add corresponding form fields in the dialog JSX.
+
+---
+
+### 5. State Definition Modes
 **File:** `src/components/EditorPanel/StateWizard.tsx`
 
 **Hardcoded Wizard Options:**
@@ -114,7 +174,7 @@ const BC_TYPES_WITH_WALL_TEMP = [
 
 ---
 
-### 4. State Property Editor
+### 6. State Property Editor
 **File:** `src/components/EditorPanel/EditorPanel.tsx` (renderStateEditor function)
 
 **Current Fields:**
@@ -132,7 +192,7 @@ const BC_TYPES_WITH_WALL_TEMP = [
 
 ---
 
-### 5. TypeScript Type Definitions
+### 7. TypeScript Type Definitions
 **File:** `src/types/config.ts`
 
 **Hardcoded Interfaces:**
@@ -192,12 +252,15 @@ These adapt automatically when the schema changes:
 When you get a new `input.schema.json`:
 
 - [ ] Check `Boundary Condition` oneOf array for new/removed BC types
-- [ ] Update `BC_TYPES` array in EditorPanel.tsx
+- [ ] Update `BC_TYPES` array in EditorPanel.tsx and BoundaryConditionDialog.tsx
 - [ ] Check each BC definition for required `state` field
 - [ ] Update BC type-specific field conditionals
+- [ ] Check `Visualization` anyOf array for new/removed visualization types
+- [ ] Update `VISUALIZATION_TYPES` array in VisualizationDialog.tsx
+- [ ] Update visualization type-specific form fields if required fields change
 - [ ] Review `State` oneOf array for new state definition modes
 - [ ] Update StateWizard options if needed
-- [ ] Test BC creation and state wizard
+- [ ] Test BC creation, visualization creation, and state wizard
 - [ ] Verify all form fields render correctly
 
 ---

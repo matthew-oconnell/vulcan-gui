@@ -250,9 +250,408 @@ function ClickableSurface({
   )
 }
 
+function VisualizationPlane({ viz, isSelected, vizIndex, controlsRef }: { viz: any; isSelected: boolean; vizIndex: number; controlsRef: React.RefObject<any> }) {
+  const planeRef = useRef<THREE.Mesh>(null)
+  const arrowRef = useRef<THREE.Group>(null)
+  const { configData, setConfigData } = useAppStore()
+  const { gl, raycaster, camera } = useThree()
+  const [isDragging, setIsDragging] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const dragStartPoint = useRef<THREE.Vector3 | null>(null)
+  const dragStartCenter = useRef<[number, number, number] | null>(null)
+  
+  // Get center and normal from viz data
+  const center = viz.center || [0, 0, 0]
+  const normal = viz.normal || [1, 0, 0]
+  
+  // Normalize the normal vector
+  const normalVec = useMemo(() => {
+    const vec = new THREE.Vector3(normal[0], normal[1], normal[2])
+    vec.normalize()
+    return vec
+  }, [normal])
+  
+  // Global pointer move handler
+  useEffect(() => {
+    if (!isDragging || !isSelected || !dragStartPoint.current || !dragStartCenter.current) return
+    
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+      
+      if (!dragStartPoint.current || !dragStartCenter.current) return
+      
+      // Convert screen coordinates to normalized device coordinates
+      const canvas = gl.domElement
+      const rect = canvas.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      // Update raycaster
+      const mouse = new THREE.Vector2(x, y)
+      raycaster.setFromCamera(mouse, camera)
+      
+      // Create a plane perpendicular to the view direction at the arrow position
+      const arrowWorldPos = new THREE.Vector3(
+        dragStartCenter.current[0],
+        dragStartCenter.current[1],
+        dragStartCenter.current[2]
+      )
+      
+      // Get camera direction
+      const cameraDir = new THREE.Vector3()
+      camera.getWorldDirection(cameraDir)
+      
+      // Create plane for raycasting
+      const plane = new THREE.Plane()
+      plane.setFromNormalAndCoplanarPoint(cameraDir, arrowWorldPos)
+      
+      // Raycast to the plane
+      const intersection = new THREE.Vector3()
+      raycaster.ray.intersectPlane(plane, intersection)
+      
+      if (intersection) {
+        // Calculate the movement from the initial drag point
+        const movement = new THREE.Vector3()
+        movement.subVectors(intersection, dragStartPoint.current)
+        
+        // Project movement onto the normal direction
+        const distance = movement.dot(normalVec)
+        
+        // Update center position based on initial center plus movement along normal
+        const newCenter: [number, number, number] = [
+          dragStartCenter.current[0] + normalVec.x * distance,
+          dragStartCenter.current[1] + normalVec.y * distance,
+          dragStartCenter.current[2] + normalVec.z * distance
+        ]
+        
+        // Update config data
+        if (configData.visualization) {
+          const updatedViz = [...configData.visualization]
+          updatedViz[vizIndex] = {
+            ...viz,
+            center: newCenter
+          }
+          setConfigData({
+            ...configData,
+            visualization: updatedViz
+          })
+        }
+      }
+    }
+    
+    const handleGlobalPointerUp = () => {
+      setIsDragging(false)
+      dragStartPoint.current = null
+      dragStartCenter.current = null
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+    }
+    
+    window.addEventListener('pointermove', handleGlobalPointerMove)
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove)
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+    }
+  }, [isDragging, isSelected, dragStartPoint.current, dragStartCenter.current, normalVec, configData, vizIndex, viz, setConfigData, controlsRef, gl, raycaster, camera])
+  
+  // Ensure controls are re-enabled when component unmounts or dragging stops
+  useEffect(() => {
+    return () => {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+    }
+  }, [controlsRef])
+  
+  // Re-enable controls if we stop being selected while dragging
+  useEffect(() => {
+    if (!isSelected && isDragging) {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+      setIsDragging(false)
+      dragStartPoint.current = null
+      dragStartCenter.current = null
+    }
+  }, [isSelected, isDragging, controlsRef])
+  
+  // Create rotation to align plane with normal
+  const rotation = useMemo(() => {
+    const defaultNormal = new THREE.Vector3(0, 0, 1) // PlaneGeometry default normal
+    const quaternion = new THREE.Quaternion()
+    quaternion.setFromUnitVectors(defaultNormal, normalVec)
+    const euler = new THREE.Euler()
+    euler.setFromQuaternion(quaternion)
+    return [euler.x, euler.y, euler.z] as [number, number, number]
+  }, [normalVec])
+  
+  // Arrow rotation (point along normal)
+  const arrowRotation = useMemo(() => {
+    const defaultDir = new THREE.Vector3(0, 1, 0) // Arrow points up by default
+    const quaternion = new THREE.Quaternion()
+    quaternion.setFromUnitVectors(defaultDir, normalVec)
+    const euler = new THREE.Euler()
+    euler.setFromQuaternion(quaternion)
+    return [euler.x, euler.y, euler.z] as [number, number, number]
+  }, [normalVec])
+  
+  // Use a large plane size to appear "infinite"
+  const planeSize = 100
+  
+  // Drag handler for the arrow widget
+  const handlePointerDown = (e: any) => {
+    if (!isSelected) return
+    e.stopPropagation()
+    // Store the initial drag point and center
+    dragStartPoint.current = e.point.clone()
+    dragStartCenter.current = [center[0], center[1], center[2]]
+    // Disable camera controls while dragging
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setIsDragging(true)
+  }
+  
+  return (
+    <group>
+      <mesh
+        ref={planeRef}
+        position={[center[0], center[1], center[2]]}
+        rotation={rotation}
+      >
+        <planeGeometry args={[planeSize, planeSize]} />
+        <meshStandardMaterial 
+          color={isSelected ? '#00ff00' : '#4a9eff'}
+          transparent
+          opacity={0.3}
+          side={THREE.DoubleSide}
+          emissive={isSelected ? '#00ff00' : '#000000'}
+          emissiveIntensity={isSelected ? 0.2 : 0}
+        />
+      </mesh>
+      
+      {/* Draggable arrow widget - only show when selected */}
+      {isSelected && (
+        <group
+          ref={arrowRef}
+          position={[center[0], center[1], center[2]]}
+          rotation={arrowRotation}
+          onPointerDown={handlePointerDown}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+        >
+          {/* Arrow shaft */}
+          <mesh position={[0, 2, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 4]} />
+            <meshStandardMaterial color={hovered || isDragging ? '#ffff00' : '#ff8800'} />
+          </mesh>
+          
+          {/* Arrow head */}
+          <mesh position={[0, 4.5, 0]}>
+            <coneGeometry args={[0.3, 1, 16]} />
+            <meshStandardMaterial color={hovered || isDragging ? '#ffff00' : '#ff8800'} />
+          </mesh>
+          
+          {/* Arrow tail (opposite direction) */}
+          <mesh position={[0, -2, 0]}>
+            <cylinderGeometry args={[0.1, 0.1, 4]} />
+            <meshStandardMaterial color={hovered || isDragging ? '#ffff00' : '#ff8800'} />
+          </mesh>
+          
+          <mesh position={[0, -4.5, 0]} rotation={[Math.PI, 0, 0]}>
+            <coneGeometry args={[0.3, 1, 16]} />
+            <meshStandardMaterial color={hovered || isDragging ? '#ffff00' : '#ff8800'} />
+          </mesh>
+        </group>
+      )}
+    </group>
+  )
+}
+
+function VisualizationLine({ viz, isSelected, vizIndex, controlsRef }: { viz: any; isSelected: boolean; vizIndex: number; controlsRef: React.RefObject<any> }) {
+  const { configData, setConfigData } = useAppStore()
+  const { gl, raycaster, camera } = useThree()
+  const [draggingPoint, setDraggingPoint] = useState<'a' | 'b' | null>(null)
+  const [hoveredPoint, setHoveredPoint] = useState<'a' | 'b' | null>(null)
+  
+  const a = viz.a || [0, 0, 0]
+  const b = viz.b || [1, 0, 0]
+  
+  // Global pointer handlers for dragging
+  useEffect(() => {
+    if (!draggingPoint || !isSelected) return
+    
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+      
+      // Convert screen coordinates to normalized device coordinates
+      const canvas = gl.domElement
+      const rect = canvas.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      // Update raycaster
+      const mouse = new THREE.Vector2(x, y)
+      raycaster.setFromCamera(mouse, camera)
+      
+      // Create a plane perpendicular to the view direction at the point position
+      const pointWorldPos = new THREE.Vector3(
+        draggingPoint === 'a' ? a[0] : b[0],
+        draggingPoint === 'a' ? a[1] : b[1],
+        draggingPoint === 'a' ? a[2] : b[2]
+      )
+      
+      // Get camera direction
+      const cameraDir = new THREE.Vector3()
+      camera.getWorldDirection(cameraDir)
+      
+      // Create plane for raycasting
+      const plane = new THREE.Plane()
+      plane.setFromNormalAndCoplanarPoint(cameraDir, pointWorldPos)
+      
+      // Raycast to the plane
+      const intersection = new THREE.Vector3()
+      raycaster.ray.intersectPlane(plane, intersection)
+      
+      if (intersection) {
+        const newPoint: [number, number, number] = [intersection.x, intersection.y, intersection.z]
+        
+        if (configData.visualization) {
+          const updatedViz = [...configData.visualization]
+          updatedViz[vizIndex] = {
+            ...viz,
+            [draggingPoint]: newPoint
+          }
+          setConfigData({
+            ...configData,
+            visualization: updatedViz
+          })
+        }
+      }
+    }
+    
+    const handleGlobalPointerUp = () => {
+      setDraggingPoint(null)
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+    }
+    
+    window.addEventListener('pointermove', handleGlobalPointerMove)
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove)
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+    }
+  }, [draggingPoint, isSelected, a, b, configData, vizIndex, viz, setConfigData, controlsRef, gl, raycaster, camera])
+  
+  // Ensure controls are re-enabled when component unmounts or dragging stops
+  useEffect(() => {
+    return () => {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+    }
+  }, [controlsRef])
+  
+  // Re-enable controls if we stop being selected while dragging
+  useEffect(() => {
+    if (!isSelected && draggingPoint !== null) {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+      setDraggingPoint(null)
+    }
+  }, [isSelected, draggingPoint, controlsRef])
+  
+  // Create line geometry from points
+  const points = useMemo(() => {
+    return [
+      new THREE.Vector3(a[0], a[1], a[2]),
+      new THREE.Vector3(b[0], b[1], b[2])
+    ]
+  }, [a, b])
+  
+  const geometry = useMemo(() => {
+    const geom = new THREE.BufferGeometry().setFromPoints(points)
+    return geom
+  }, [points])
+  
+  // Handlers for point A
+  const handlePointerDownA = (e: any) => {
+    if (!isSelected) return
+    e.stopPropagation()
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setDraggingPoint('a')
+  }
+  
+  // Handlers for point B
+  const handlePointerDownB = (e: any) => {
+    if (!isSelected) return
+    e.stopPropagation()
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setDraggingPoint('b')
+  }
+  
+  return (
+    <group>
+      {/* Line */}
+      <primitive object={new THREE.Line(geometry, new THREE.LineBasicMaterial({ 
+        color: isSelected ? 0x00ff00 : 0xffff00,
+        linewidth: isSelected ? 3 : 2 
+      }))} />
+      
+      {/* Draggable sphere at point A - only show when selected */}
+      {isSelected && (
+        <mesh
+          position={[a[0], a[1], a[2]]}
+          onPointerDown={handlePointerDownA}
+          onPointerEnter={() => setHoveredPoint('a')}
+          onPointerLeave={() => setHoveredPoint(null)}
+        >
+          <sphereGeometry args={[0.2, 16, 16]} />
+          <meshStandardMaterial 
+            color={hoveredPoint === 'a' || draggingPoint === 'a' ? '#ffff00' : '#ff0000'}
+            emissive={hoveredPoint === 'a' || draggingPoint === 'a' ? '#ffff00' : '#ff0000'}
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      )}
+      
+      {/* Draggable sphere at point B - only show when selected */}
+      {isSelected && (
+        <mesh
+          position={[b[0], b[1], b[2]]}
+          onPointerDown={handlePointerDownB}
+          onPointerEnter={() => setHoveredPoint('b')}
+          onPointerLeave={() => setHoveredPoint(null)}
+        >
+          <sphereGeometry args={[0.2, 16, 16]} />
+          <meshStandardMaterial 
+            color={hoveredPoint === 'b' || draggingPoint === 'b' ? '#ffff00' : '#00ff00'}
+            emissive={hoveredPoint === 'b' || draggingPoint === 'b' ? '#ffff00' : '#00ff00'}
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
 function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surface: Surface) => void }) {
   const { scene } = useThree()
-  const { availableSurfaces, cameraSettings } = useAppStore()
+  const { availableSurfaces, cameraSettings, selectedViz, configData } = useAppStore()
+  const controlsRef = useRef<any>(null)
   
   // Set background color
   useEffect(() => {
@@ -283,6 +682,21 @@ function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surfac
         ))
       )}
 
+      {/* Render visualizations */}
+      {configData.visualization && configData.visualization.map((viz: any, index: number) => {
+        const isSelected = selectedViz ? selectedViz.index === index : false
+        
+        // Only render if selected
+        if (!isSelected) return null
+        
+        if (viz.type === 'plane') {
+          return <VisualizationPlane key={`viz-plane-${index}`} viz={viz} isSelected={isSelected} vizIndex={index} controlsRef={controlsRef} />
+        } else if (viz.type === 'line') {
+          return <VisualizationLine key={`viz-line-${index}`} viz={viz} isSelected={isSelected} vizIndex={index} controlsRef={controlsRef} />
+        }
+        return null
+      })}
+
       {/* Ground grid */}
       <Grid
         args={[20, 20]}
@@ -300,6 +714,7 @@ function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surfac
 
       {/* Camera controls - Trackball style like Paraview */}
       <TrackballControls 
+        ref={controlsRef}
         makeDefault
         enableDamping={true}
         dampingFactor={0.05}

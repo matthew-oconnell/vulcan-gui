@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { TreeNode } from '../utils/schemaParser'
 import { Surface } from '../types/surface'
-import { ConfigData, BoundaryCondition } from '../types/config'
-import { ParsedMesh } from '../utils/meshParser'
+import { ConfigData, BoundaryCondition, State } from '../types/config'
+import { ParsedMesh, RegionData } from '../utils/meshParser'
 
 export interface CameraSettings {
   rotateSpeed: number
@@ -32,9 +32,12 @@ interface AppState {
   setSelectedBC: (bc: BoundaryCondition | null) => void
   selectedState: State | null
   setSelectedState: (state: State | null) => void
+  selectedViz: { data: any; index: number } | null
+  setSelectedViz: (viz: { data: any; index: number } | null) => void
   soloBC: BoundaryCondition | null
   setSoloBC: (bc: BoundaryCondition | null) => void
   configData: ConfigData
+  setConfigData: (configData: ConfigData) => void
   availableSurfaces: Surface[]
   totalVertices: number
   totalFaces: number
@@ -60,13 +63,15 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   selectedNode: null,
-  setSelectedNode: (node) => set({ selectedNode: node, selectedSurface: null, selectedBC: null, selectedState: null }),
+  setSelectedNode: (node) => set({ selectedNode: node, selectedSurface: null, selectedBC: null, selectedState: null, selectedViz: null }),
   selectedSurface: null,
-  setSelectedSurface: (surface) => set({ selectedSurface: surface, selectedNode: null, selectedBC: null, selectedState: null }),
+  setSelectedSurface: (surface) => set({ selectedSurface: surface, selectedNode: null, selectedBC: null, selectedState: null, selectedViz: null }),
   selectedBC: null,
-  setSelectedBC: (bc) => set({ selectedBC: bc, selectedNode: null, selectedSurface: null, selectedState: null }),
+  setSelectedBC: (bc) => set({ selectedBC: bc, selectedNode: null, selectedSurface: null, selectedState: null, selectedViz: null }),
   selectedState: null,
-  setSelectedState: (state) => set({ selectedState: state, selectedNode: null, selectedSurface: null, selectedBC: null }),
+  setSelectedState: (state) => set({ selectedState: state, selectedNode: null, selectedSurface: null, selectedBC: null, selectedViz: null }),
+  selectedViz: null,
+  setSelectedViz: (viz) => set({ selectedViz: viz, selectedNode: null, selectedSurface: null, selectedBC: null, selectedState: null }),
   soloBC: null,
   setSoloBC: (bc) => set({ soloBC: bc }),
   
@@ -77,6 +82,8 @@ export const useAppStore = create<AppState>((set) => ({
       states: {}
     }
   },
+  
+  setConfigData: (configData) => set({ configData }),
   
   availableSurfaces: [],
   totalVertices: 0,
