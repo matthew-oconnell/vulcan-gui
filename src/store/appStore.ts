@@ -2,13 +2,7 @@ import { create } from 'zustand'
 import { TreeNode } from '../utils/schemaParser'
 import { Surface } from '../types/surface'
 import { ConfigData, BoundaryCondition } from '../types/config'
-
-// Mock surfaces that will later be loaded from mesh file
-const mockSurfaces: Surface[] = [
-  { id: 'surface-1', name: 'Inlet', metadata: { id: 'surface-1', tag: 1, tagName: 'inlet' } },
-  { id: 'surface-2', name: 'Outlet', metadata: { id: 'surface-2', tag: 2, tagName: 'outlet' } },
-  { id: 'surface-3', name: 'Wall', metadata: { id: 'surface-3', tag: 3, tagName: 'wall' } }
-]
+import { MeshData } from '../utils/stlParser'
 
 interface AppState {
   selectedNode: TreeNode | null
@@ -23,6 +17,7 @@ interface AppState {
   setSoloBC: (bc: BoundaryCondition | null) => void
   configData: ConfigData
   availableSurfaces: Surface[]
+  meshData: MeshData | null
   addBoundaryCondition: (bc: BoundaryCondition) => void
   updateBoundaryCondition: (id: string, updates: Partial<BoundaryCondition>) => void
   deleteBoundaryCondition: (id: string) => void
@@ -30,6 +25,7 @@ interface AppState {
   updateState: (id: string, updates: Partial<State>) => void
   deleteState: (id: string) => void
   initializeConfig: (projectConfig: any) => void
+  loadMesh: (meshData: MeshData, filename: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -52,7 +48,8 @@ export const useAppStore = create<AppState>((set) => ({
     }
   },
   
-  availableSurfaces: mockSurfaces,
+  availableSurfaces: [],
+  meshData: null,
   
   addBoundaryCondition: (bc) => set((state) => ({
     configData: {
@@ -261,6 +258,30 @@ export const useAppStore = create<AppState>((set) => ({
       selectedSurface: null,
       selectedBC: null,
       selectedState: null
+    }
+  }),
+  
+  loadMesh: (meshData, filename) => set((s) => {
+    console.log('[App Store] Loading mesh:', filename)
+    const surface: Surface = {
+      id: 'mesh-surface-1',
+      name: filename.replace('.stl', '') || 'Mesh',
+      metadata: {
+        id: 'mesh-surface-1',
+        tag: 1,
+        tagName: 'mesh'
+      },
+      geometry: {
+        vertices: meshData.vertices,
+        normals: meshData.normals
+      }
+    }
+    console.log('[App Store] Surface created, updating store')
+    return {
+      ...s,
+      meshData,
+      availableSurfaces: [surface],
+      selectedSurface: null
     }
   })
 }))

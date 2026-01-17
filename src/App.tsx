@@ -7,12 +7,13 @@ import MenuBar from './components/MenuBar/MenuBar'
 import NewProjectWizard, { ProjectConfig } from './components/MenuBar/NewProjectWizard'
 import SettingsDialog from './components/SettingsDialog/SettingsDialog'
 import { useAppStore } from './store/appStore'
+import { pickSTLFile, parseSTL } from './utils/stlParser'
 import './App.css'
 
 function App() {
   const [showNewProjectWizard, setShowNewProjectWizard] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
-  const { configData, initializeConfig } = useAppStore()
+  const { configData, initializeConfig, loadMesh } = useAppStore()
 
   const handleNew = () => {
     setShowNewProjectWizard(true)
@@ -49,6 +50,30 @@ function App() {
     setShowSettingsDialog(true)
   }
 
+  const handleLoadMesh = async () => {
+    console.log('[App] Load Mesh clicked')
+    try {
+      const file = await pickSTLFile()
+      if (!file) {
+        console.log('[App] No file selected')
+        return
+      }
+      
+      console.log('[App] Parsing STL file...')
+      const meshData = await parseSTL(file)
+      console.log('[App] Mesh parsed successfully:', {
+        vertices: meshData.vertices.length / 3,
+        triangles: meshData.vertices.length / 9
+      })
+      
+      console.log('[App] Loading mesh into store...')
+      loadMesh(meshData, file.name)
+      console.log('[App] Mesh loaded successfully!')
+    } catch (error) {
+      console.error('[App] Error loading mesh:', error)
+    }
+  }
+
   return (
     <div className="app-container">
       <MenuBar 
@@ -58,6 +83,7 @@ function App() {
         onValidate={handleValidate}
         onExit={handleExit}
         onSettings={handleSettings}
+        onLoadMesh={handleLoadMesh}
       />
       <PanelGroup direction="horizontal">
         {/* Left Panel Group - contains tree and editor vertically stacked */}

@@ -8,9 +8,10 @@ interface MenuBarProps {
   onValidate?: () => void
   onExit?: () => void
   onSettings?: () => void
+  onLoadMesh?: () => void
 }
 
-function MenuBar({ onNew, onOpen, onSave, onValidate, onExit, onSettings }: MenuBarProps) {
+function MenuBar({ onNew, onOpen, onSave, onValidate, onExit, onSettings, onLoadMesh }: MenuBarProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -72,6 +73,13 @@ function MenuBar({ onNew, onOpen, onSave, onValidate, onExit, onSettings }: Menu
             >
               <span className="menu-option-label">Save</span>
               <span className="menu-option-shortcut">Ctrl+S</span>
+            </button>
+            <div className="menu-separator" />
+            <button 
+              className="menu-option" 
+              onClick={() => handleMenuItemClick(onLoadMesh || (() => console.log('Load Mesh')))}
+            >
+              <span className="menu-option-label">Load Mesh</span>
             </button>
             <div className="menu-separator" />
             <button 
