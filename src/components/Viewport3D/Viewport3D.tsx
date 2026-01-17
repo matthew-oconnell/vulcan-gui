@@ -158,7 +158,7 @@ function ClickableSurface({ surface }: { surface: Surface }) {
 
 function Scene() {
   const { scene } = useThree()
-  const { availableSurfaces } = useAppStore()
+  const { availableSurfaces, cameraSettings } = useAppStore()
   
   // Set background color
   useEffect(() => {
@@ -206,13 +206,18 @@ function Scene() {
         makeDefault
         enableDamping={true}
         dampingFactor={0.05}
-        rotateSpeed={1.5}
-        zoomSpeed={1.2}
-        panSpeed={0.8}
+        rotateSpeed={cameraSettings.rotateSpeed}
+        zoomSpeed={cameraSettings.invertZoom ? -cameraSettings.zoomSpeed : cameraSettings.zoomSpeed}
+        panSpeed={cameraSettings.panSpeed}
         staticMoving={false}
         dynamicDampingFactor={0.2}
         minDistance={1}
         maxDistance={100}
+        mouseButtons={{
+          LEFT: THREE.MOUSE.ROTATE,
+          MIDDLE: THREE.MOUSE.PAN,
+          RIGHT: THREE.MOUSE.DOLLY
+        }}
       />
     </>
   )

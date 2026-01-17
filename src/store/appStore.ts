@@ -4,6 +4,13 @@ import { Surface } from '../types/surface'
 import { ConfigData, BoundaryCondition } from '../types/config'
 import { ParsedMesh } from '../utils/meshParser'
 
+export interface CameraSettings {
+  rotateSpeed: number
+  zoomSpeed: number
+  panSpeed: number
+  invertZoom: boolean
+}
+
 interface AppState {
   selectedNode: TreeNode | null
   setSelectedNode: (node: TreeNode | null) => void
@@ -19,6 +26,8 @@ interface AppState {
   availableSurfaces: Surface[]
   totalVertices: number
   totalFaces: number
+  cameraSettings: CameraSettings
+  updateCameraSettings: (settings: Partial<CameraSettings>) => void
   addBoundaryCondition: (bc: BoundaryCondition) => void
   updateBoundaryCondition: (id: string, updates: Partial<BoundaryCondition>) => void
   deleteBoundaryCondition: (id: string) => void
@@ -52,6 +61,18 @@ export const useAppStore = create<AppState>((set) => ({
   availableSurfaces: [],
   totalVertices: 0,
   totalFaces: 0,
+  
+  // Camera settings with defaults matching Paraview behavior
+  cameraSettings: {
+    rotateSpeed: 1.5,
+    zoomSpeed: 1.2,
+    panSpeed: 0.8,
+    invertZoom: true // Pulling back zooms in (Paraview-like)
+  },
+  
+  updateCameraSettings: (settings) => set((state) => ({
+    cameraSettings: { ...state.cameraSettings, ...settings }
+  })),
   
   addBoundaryCondition: (bc) => set((state) => ({
     configData: {

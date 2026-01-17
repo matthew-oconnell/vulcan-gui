@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useAppStore } from '../../store/appStore'
 import './SettingsDialog.css'
 
 interface SettingsDialogProps {
@@ -7,6 +8,14 @@ interface SettingsDialogProps {
 
 function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState('general')
+  const { cameraSettings, updateCameraSettings } = useAppStore()
+  
+  // Camera settings local state
+  const [rotateSpeed, setRotateSpeed] = useState(cameraSettings.rotateSpeed)
+  const [zoomSpeed, setZoomSpeed] = useState(cameraSettings.zoomSpeed)
+  const [panSpeed, setPanSpeed] = useState(cameraSettings.panSpeed)
+  const [invertZoom, setInvertZoom] = useState(cameraSettings.invertZoom)
+  
   const [editorFontSize, setEditorFontSize] = useState(() => {
     const saved = localStorage.getItem('editorFontSize')
     return saved ? Number(saved) : 14
@@ -52,6 +61,15 @@ function SettingsDialog({ onClose }: SettingsDialogProps) {
     localStorage.setItem('uiFontSize', String(uiFontSize))
     localStorage.setItem('treeFontSize', String(treeFontSize))
     localStorage.setItem('menuFontSize', String(menuFontSize))
+    
+    // Save camera settings to store
+    updateCameraSettings({
+      rotateSpeed,
+      zoomSpeed,
+      panSpeed,
+      invertZoom
+    })
+    
     onClose()
   }
 
@@ -78,6 +96,12 @@ function SettingsDialog({ onClose }: SettingsDialogProps) {
               onClick={() => setActiveTab('editor')}
             >
               Editor
+            </button>
+            <button
+              className={`settings-tab ${activeTab === 'camera' ? 'active' : ''}`}
+              onClick={() => setActiveTab('camera')}
+            >
+              Camera
             </button>
             <button
               className={`settings-tab ${activeTab === 'appearance' ? 'active' : ''}`}
@@ -119,6 +143,105 @@ function SettingsDialog({ onClose }: SettingsDialogProps) {
                   <label htmlFor="word-wrap">
                     <input type="checkbox" id="word-wrap" />
                     Enable word wrap
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'camera' && (
+              <div className="settings-section">
+                <h3>3D Viewport Camera Controls</h3>
+                
+                <div className="settings-item">
+                  <label htmlFor="rotate-speed" className="settings-label-column">
+                    <span>Rotation Speed</span>
+                    <div className="settings-input-group">
+                      <input
+                        type="range"
+                        id="rotate-speed"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={rotateSpeed}
+                        onChange={(e) => setRotateSpeed(Number(e.target.value))}
+                        className="settings-range"
+                      />
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={rotateSpeed}
+                        onChange={(e) => setRotateSpeed(Number(e.target.value))}
+                        className="settings-number"
+                      />
+                    </div>
+                  </label>
+                </div>
+
+                <div className="settings-item">
+                  <label htmlFor="zoom-speed" className="settings-label-column">
+                    <span>Zoom Speed</span>
+                    <div className="settings-input-group">
+                      <input
+                        type="range"
+                        id="zoom-speed"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={zoomSpeed}
+                        onChange={(e) => setZoomSpeed(Number(e.target.value))}
+                        className="settings-range"
+                      />
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={zoomSpeed}
+                        onChange={(e) => setZoomSpeed(Number(e.target.value))}
+                        className="settings-number"
+                      />
+                    </div>
+                  </label>
+                </div>
+
+                <div className="settings-item">
+                  <label htmlFor="pan-speed" className="settings-label-column">
+                    <span>Pan Speed</span>
+                    <div className="settings-input-group">
+                      <input
+                        type="range"
+                        id="pan-speed"
+                        min="0.3"
+                        max="2.0"
+                        step="0.1"
+                        value={panSpeed}
+                        onChange={(e) => setPanSpeed(Number(e.target.value))}
+                        className="settings-range"
+                      />
+                      <input
+                        type="number"
+                        min="0.3"
+                        max="2.0"
+                        step="0.1"
+                        value={panSpeed}
+                        onChange={(e) => setPanSpeed(Number(e.target.value))}
+                        className="settings-number"
+                      />
+                    </div>
+                  </label>
+                </div>
+
+                <div className="settings-item">
+                  <label htmlFor="invert-zoom">
+                    <input 
+                      type="checkbox" 
+                      id="invert-zoom" 
+                      checked={invertZoom}
+                      onChange={(e) => setInvertZoom(e.target.checked)}
+                    />
+                    Invert zoom direction (pull back to zoom in)
                   </label>
                 </div>
               </div>
