@@ -1,0 +1,45 @@
+.deletion-dialog {
+  width: 500px;
+  max-width: 90vw;
+}
+
+.danger-icon-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.danger-icon {
+  color: #ef4444;
+}
+
+.danger-message-text {
+  font-size: 14px;
+  color: #cccccc;
+  line-height: 1.6;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.danger-message-text strong {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.danger-question {
+  font-size: 14px;
+  color: #cccccc;
+  margin-top: 20px;
+  margin-bottom: 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.button-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.button-danger:hover {
+  background-color: #b91c1c;
+}

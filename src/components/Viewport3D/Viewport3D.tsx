@@ -8,6 +8,8 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { CameraControls, CameraToolbar } from './CameraToolbar'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
+import SurfaceAlreadyAssignedDialog from '../SurfaceAlreadyAssignedDialog/SurfaceAlreadyAssignedDialog'
+import ConfirmBCDeletionDialog from '../ConfirmBCDeletionDialog/ConfirmBCDeletionDialog'
 import './Viewport3D.css'
 
 // Sample surfaces with metadata
@@ -38,6 +40,9 @@ function ClickableSurface({
 }) {
   const meshRef = useRef<THREE.Mesh>(null)
   const edgesRef = useRef<THREE.LineSegments>(null)
+  // Track right-click position to differentiate click from drag (use ref for immediate access)
+  const rightClickStartRef = useRef<{ x: number; y: number } | null>(null)
+  
   const { selectedSurface, setSelectedSurface, selectedBC, soloBC, surfaceVisibility, surfaceRenderSettings } = useAppStore()
   const [hovered, setHovered] = useState(false)
   
@@ -103,9 +108,6 @@ function ClickableSurface({
   if (soloBC && !belongsToSoloBC) {
     return null
   }
-  
-  // Track right-click position to differentiate click from drag (use ref for immediate access)
-  const rightClickStartRef = useRef<{ x: number; y: number } | null>(null)
   
   const handleClick = (e: any) => {
     e.stopPropagation()
@@ -327,13 +329,21 @@ function Viewport3D() {
     selectedSurface, 
     configData,
     addBoundaryCondition,
-    setSelectedBC
+    setSelectedBC,
+    updateBoundaryCondition,
+    deleteBoundaryCondition,
+    toggleSurfaceVisibility,
+    surfaceVisibility
   } = useAppStore()
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; surface: Surface } | null>(null)
   const [showBCDialog, setShowBCDialog] = useState(false)
   const [bcDialogInitialSurface, setBCDialogInitialSurface] = useState<Surface | undefined>(undefined)
+  const [showAlreadyAssignedDialog, setShowAlreadyAssignedDialog] = useState(false)
+  const [showConfirmDeletionDialog, setShowConfirmDeletionDialog] = useState(false)
+  const [conflictingSurface, setConflictingSurface] = useState<Surface | null>(null)
+  const [conflictingBC, setConflictingBC] = useState<BoundaryCondition | null>(null)
   
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
@@ -381,6 +391,33 @@ function Viewport3D() {
     }
   }, [isDragging, dragOffset])
   
+  // Close context menu if the surface it's attached to becomes invisible
+  useEffect(() => {
+    if (contextMenu) {
+      const isSurfaceVisible = surfaceVisibility[contextMenu.surface.id] ?? true
+      if (!isSurfaceVisible) {
+        setContextMenu(null)
+      }
+    }
+  }, [surfaceVisibility, contextMenu])
+  
+  const findBCForSurface = (surface: Surface): BoundaryCondition | null => {
+    const bcs = configData.HyperSolve?.['boundary conditions'] || []
+    return bcs.find(bc => {
+      const tags = bc['mesh boundary tags']
+      const surfaceTag = surface.metadata.tag
+      
+      if (Array.isArray(tags)) {
+        return (tags as any[]).includes(surfaceTag) || (tags as any[]).includes(String(surfaceTag))
+      } else if (typeof tags === 'number') {
+        return tags === surfaceTag
+      } else if (typeof tags === 'string') {
+        return tags.split(',').map(s => parseInt(s.trim(), 10)).includes(surfaceTag)
+      }
+      return false
+    }) || null
+  }
+  
   const handleSurfaceContextMenu = (e: any, surface: Surface) => {
     // R3F events don't have preventDefault directly
     if (e.nativeEvent) {
@@ -406,10 +443,21 @@ function Viewport3D() {
   const handleCreateNewBC = () => {
     if (!contextMenu) return
     
-    // Open the BC creation dialog with the selected surface
-    setBCDialogInitialSurface(contextMenu.surface)
-    setShowBCDialog(true)
-    closeContextMenu()
+    const surface = contextMenu.surface
+    const existingBC = findBCForSurface(surface)
+    
+    if (existingBC) {
+      // Surface is already assigned, show warning
+      setConflictingSurface(surface)
+      setConflictingBC(existingBC)
+      setShowAlreadyAssignedDialog(true)
+      closeContextMenu()
+    } else {
+      // Surface is not assigned, proceed normally
+      setBCDialogInitialSurface(surface)
+      setShowBCDialog(true)
+      closeContextMenu()
+    }
   }
   
   const handleAddToVisualization = () => {
@@ -426,6 +474,75 @@ function Viewport3D() {
     // TODO: Implement surface visualization creation
     console.log('Create new surface visualization:', contextMenu.surface)
     closeContextMenu()
+  }
+  
+  const handleHideSurface = () => {
+    if (!contextMenu) return
+    
+    toggleSurfaceVisibility(contextMenu.surface.id)
+    // Don't call closeContextMenu() - let the useEffect handle it
+  }
+  
+  const handleGoToBC = () => {
+    if (conflictingBC) {
+      setSelectedBC(conflictingBC)
+      setShowAlreadyAssignedDialog(false)
+      setConflictingSurface(null)
+      setConflictingBC(null)
+    }
+  }
+  
+  const handleRemoveAndContinue = () => {
+    if (!conflictingSurface || !conflictingBC) return
+    
+    const tags = conflictingBC['mesh boundary tags']
+    const surfaceTag = conflictingSurface.metadata.tag
+    let newTags: number[]
+    
+    if (Array.isArray(tags)) {
+      newTags = (tags as any[]).filter(t => t !== surfaceTag && t !== String(surfaceTag)) as number[]
+    } else if (typeof tags === 'number') {
+      newTags = []
+    } else if (typeof tags === 'string') {
+      newTags = tags.split(',').map(s => parseInt(s.trim(), 10)).filter(t => t !== surfaceTag)
+    } else {
+      newTags = []
+    }
+    
+    // Check if BC will have no surfaces left
+    const willBeEmpty = newTags.length === 0
+    
+    if (willBeEmpty) {
+      // Show deletion confirmation dialog
+      setShowAlreadyAssignedDialog(false)
+      setShowConfirmDeletionDialog(true)
+    } else {
+      // Remove surface from BC and continue
+      updateBoundaryCondition(conflictingBC.id, {
+        'mesh boundary tags': newTags.length === 1 ? newTags[0] : newTags
+      })
+      
+      // Open BC creation dialog with the surface
+      setBCDialogInitialSurface(conflictingSurface)
+      setShowBCDialog(true)
+      setShowAlreadyAssignedDialog(false)
+      setConflictingSurface(null)
+      setConflictingBC(null)
+    }
+  }
+  
+  const handleConfirmDeletion = () => {
+    if (!conflictingBC || !conflictingSurface) return
+    
+    // Delete the BC
+    deleteBoundaryCondition(conflictingBC.id)
+    
+    // Open BC creation dialog with the surface
+    setBCDialogInitialSurface(conflictingSurface)
+    setShowBCDialog(true)
+    setShowConfirmDeletionDialog(false)
+    setConflictingSurface(null)
+    setConflictingBC(null)
   }
   
   // Close context menu on click outside
@@ -501,7 +618,7 @@ function Viewport3D() {
                     const surfaceTag = selectedSurface.metadata.tag
                     
                     if (Array.isArray(tags)) {
-                      return tags.includes(surfaceTag) || tags.includes(String(surfaceTag))
+                      return (tags as any[]).includes(surfaceTag) || (tags as any[]).includes(String(surfaceTag))
                     } else if (typeof tags === 'number') {
                       return tags === surfaceTag
                     } else if (typeof tags === 'string') {
@@ -530,7 +647,7 @@ function Viewport3D() {
         </div>
         
         {/* Context menu */}
-        {contextMenu && selectedSurface && (() => {
+        {contextMenu && (() => {
           const hasBCs = configData?.HyperSolve?.['boundary conditions']?.length > 0
           const hasVisualizations = false // TODO: Check when visualizations are implemented
           
@@ -540,6 +657,8 @@ function Viewport3D() {
               style={{ left: contextMenu.x, top: contextMenu.y }}
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="context-menu-item" onClick={handleHideSurface}>Hide Surface</div>
+              <div className="context-menu-separator" />
               {hasBCs && <div className="context-menu-item" onClick={handleAddToBC}>Add to BC</div>}
               <div className="context-menu-item" onClick={handleCreateNewBC}>Create new BC from surface</div>
               {(hasBCs || hasVisualizations) && <div className="context-menu-separator" />}
@@ -559,6 +678,36 @@ function Viewport3D() {
         }}
         initialSurface={bcDialogInitialSurface}
       />
+      
+      {/* Surface Already Assigned Warning Dialog */}
+      {conflictingSurface && conflictingBC && (
+        <SurfaceAlreadyAssignedDialog
+          isOpen={showAlreadyAssignedDialog}
+          onClose={() => {
+            setShowAlreadyAssignedDialog(false)
+            setConflictingSurface(null)
+            setConflictingBC(null)
+          }}
+          surface={conflictingSurface}
+          existingBC={conflictingBC}
+          onGoToBC={handleGoToBC}
+          onRemoveAndContinue={handleRemoveAndContinue}
+        />
+      )}
+      
+      {/* Confirm BC Deletion Dialog */}
+      {conflictingBC && (
+        <ConfirmBCDeletionDialog
+          isOpen={showConfirmDeletionDialog}
+          onClose={() => {
+            setShowConfirmDeletionDialog(false)
+            setConflictingSurface(null)
+            setConflictingBC(null)
+          }}
+          bc={conflictingBC}
+          onConfirm={handleConfirmDeletion}
+        />
+      )}
     </div>
   )
 }

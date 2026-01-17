@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
-import { BoundaryCondition } from '../../types/config'
+import { BoundaryCondition, State } from '../../types/config'
 import { Surface } from '../../types/surface'
 import { loadBCTypeDescriptions, loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
+import StateWizard from '../EditorPanel/StateWizard'
 import './BoundaryConditionDialog.css'
 
 // BC types that require a state reference
@@ -81,7 +82,8 @@ export default function BoundaryConditionDialog({
     availableSurfaces, 
     configData, 
     addBoundaryCondition, 
-    setSelectedBC 
+    setSelectedBC,
+    addState
   } = useAppStore()
 
   const [bcName, setBcName] = useState('')
@@ -92,6 +94,7 @@ export default function BoundaryConditionDialog({
   const [constantTempValue, setConstantTempValue] = useState(300)
   const [bcDescriptions, setBcDescriptions] = useState<Record<string, string>>({})
   const [availableBCTypes, setAvailableBCTypes] = useState<string[]>(BC_TYPES)
+  const [showStateWizard, setShowStateWizard] = useState(false)
 
   // Get list of unassigned surfaces
   const getUnassignedSurfaces = (): Surface[] => {
@@ -150,6 +153,20 @@ export default function BoundaryConditionDialog({
       setConstantTempValue(300)
     }
   }, [isOpen, initialSurface])
+
+  const handleStateChange = (value: string) => {
+    if (value === '__CREATE_NEW__') {
+      setShowStateWizard(true)
+    } else {
+      setStateName(value)
+    }
+  }
+
+  const handleCreateState = (state: State) => {
+    addState(state)
+    setStateName(state.name)
+    setShowStateWizard(false)
+  }
 
   const handleSurfaceToggle = (tag: number) => {
     setSelectedSurfaceTags(prev => 
@@ -259,24 +276,19 @@ export default function BoundaryConditionDialog({
           {requiresState && (
             <div className="form-group">
               <label className="form-label">State *</label>
-              {availableStates.length > 0 ? (
-                <select
-                  className="form-input"
-                  value={stateName}
-                  onChange={(e) => setStateName(e.target.value)}
-                >
-                  <option value="">-- Select a state --</option>
-                  {availableStates.map((state) => (
-                    <option key={state} value={state}>
-                      {state}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="warning-message">
-                  No states defined. Please create a state first.
-                </div>
-              )}
+              <select
+                className="form-input"
+                value={stateName}
+                onChange={(e) => handleStateChange(e.target.value)}
+              >
+                <option value="">-- Select a state --</option>
+                {availableStates.map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+                <option value="__CREATE_NEW__">+ Create new state...</option>
+              </select>
             </div>
           )}
 
@@ -378,6 +390,13 @@ export default function BoundaryConditionDialog({
           </button>
         </div>
       </div>
+
+      {showStateWizard && (
+        <StateWizard
+          onClose={() => setShowStateWizard(false)}
+          onCreate={handleCreateState}
+        />
+      )}
     </div>
   )
 }

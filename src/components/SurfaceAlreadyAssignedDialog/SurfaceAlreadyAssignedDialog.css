@@ -1,0 +1,45 @@
+.warning-dialog {
+  width: 500px;
+  max-width: 90vw;
+}
+
+.warning-icon-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.warning-icon {
+  color: #ffc107;
+}
+
+.warning-message-text {
+  font-size: 14px;
+  color: #cccccc;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.warning-message-text strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.warning-question {
+  font-size: 14px;
+  color: #cccccc;
+  margin-top: 20px;
+  margin-bottom: 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.button-warning {
+  background-color: #d97706;
+  color: #ffffff;
+}
+
+.button-warning:hover {
+  background-color: #b45309;
+}
