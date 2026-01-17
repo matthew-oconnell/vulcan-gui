@@ -1,30 +1,91 @@
-import { FolderTree, ChevronRight, ChevronDown, File, Folder, List, FileCode } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { FolderTree, ChevronRight, ChevronDown, File, Folder, List, FileCode, Settings } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { TreeNode, buildTreeFromSchema } from '../../utils/schemaParser'
 import { useAppStore } from '../../store/appStore'
+import { expandPathInTree, findNodeByPath } from '../../utils/treeNavigation'
+import { getFeatureFlags, updateFeatureFlags } from '../../utils/featureFlags'
 import './TreePanel.css'
 
 function TreePanel() {
   const [treeData, setTreeData] = useState<TreeNode[]>([])
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(getFeatureFlags().showAdvancedFeatures)
   const { selectedNode, setSelectedNode, selectedBC, setSelectedBC, selectedState, setSelectedState, configData } = useAppStore()
   const selectedId = selectedNode?.id || null
+  const schemaRef = useRef<any>(null) // Store the schema for node lookup
 
   useEffect(() => {
     console.log('TreePanel - Current configData:', configData)
   }, [configData])
 
-  useEffect(() => {
-    // Fetch and build tree from schema on mount
+  // Load schema and build tree
+  const loadSchemaAndBuildTree = () => {
     fetch('/input.schema.json')
       .then(response => response.json())
       .then(inputSchema => {
+        schemaRef.current = inputSchema // Store schema for later use
         const tree = buildTreeFromSchema(inputSchema, inputSchema.required || [])
         setTreeData(tree)
       })
       .catch(error => {
         console.error('Failed to load schema:', error)
       })
+  }
+  
+  // Initial load on mount
+  useEffect(() => {
+    loadSchemaAndBuildTree()
   }, [])
+  
+  // Toggle advanced features
+  const handleToggleAdvanced = () => {
+    const newValue = !showAdvanced
+    setShowAdvanced(newValue)
+    updateFeatureFlags({ showAdvancedFeatures: newValue })
+    
+    // Rebuild tree with new settings
+    loadSchemaAndBuildTree()
+  }
+  
+  // Expose a function to navigate to a path via the window object
+  useEffect(() => {
+    // Add a global function to navigate to a node by path
+    const navigateToPath = (path: string) => {
+      if (!path || !treeData.length) return
+      
+      console.log('Navigating to path:', path)
+      
+      // Expand all nodes along the path
+      const expandedTree = expandPathInTree(treeData, path)
+      setTreeData(expandedTree)
+      
+      // Find the target node
+      const targetNode = findNodeByPath(expandedTree, path)
+      if (targetNode) {
+        console.log('Found target node:', targetNode)
+        setSelectedNode(targetNode)
+        
+        // Scroll to the node (add a small delay to allow rendering)
+        setTimeout(() => {
+          const nodeElement = document.getElementById(`tree-node-${targetNode.id}`)
+          if (nodeElement) {
+            nodeElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            nodeElement.classList.add('highlight-animate')
+            setTimeout(() => {
+              nodeElement.classList.remove('highlight-animate')
+            }, 2000)
+          }
+        }, 100)
+      }
+    }
+    
+    // Expose the navigation function globally
+    ;(window as any).navigateToTreePath = navigateToPath
+    
+    return () => {
+      // Clean up when component unmounts
+      delete (window as any).navigateToTreePath
+    }
+  }, [treeData, setSelectedNode])
 
   const toggleNode = (id: string) => {
     const toggleRecursive = (nodes: TreeNode[]): TreeNode[] => {
@@ -119,6 +180,7 @@ function TreePanel() {
       return (
         <div key={node.id} className="tree-node">
           <div 
+            id={`tree-node-${node.id}`}
             className={`tree-node-content ${isSelected ? 'selected' : ''} ${node.required ? 'required' : ''}`}
             style={{ paddingLeft: `${depth * 16 + 8}px` }}
             onClick={() => {
@@ -162,6 +224,16 @@ function TreePanel() {
       <div className="panel-header">
         <FolderTree size={16} />
         <span>Configuration Tree</span>
+        <div className="panel-header-actions">
+          <button 
+            className={`advanced-toggle ${showAdvanced ? 'active' : ''}`} 
+            onClick={handleToggleAdvanced}
+            title={showAdvanced ? 'Hide advanced options' : 'Show advanced options'}
+          >
+            <Settings size={14} />
+            <span>Advanced</span>
+          </button>
+        </div>
       </div>
       <div className="panel-content">
         {renderTree(treeData)}

@@ -9,14 +9,15 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@react-three/drei": "^9.93.0",
+    "@react-three/fiber": "^8.15.12",
+    "ajv": "^8.17.1",
+    "lucide-react": "^0.303.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@react-three/fiber": "^8.15.12",
-    "@react-three/drei": "^9.93.0",
-    "three": "^0.160.0",
     "react-resizable-panels": "^2.0.10",
-    "zustand": "^4.4.7",
-    "lucide-react": "^0.303.0"
+    "three": "^0.160.0",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",

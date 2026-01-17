@@ -25,6 +25,7 @@ interface SchemaProperty {
   enum?: any[]
   hidden?: boolean
   required?: string[]
+  'only for'?: string[] | string  // Properties tagged with specific categories
 }
 
 interface Schema {
@@ -77,12 +78,37 @@ function resolveReference(ref: string): SchemaProperty | null {
   return cachedSchema.definitions?.[defName] || null
 }
 
+import { getFeatureFlags, isCategoryHidden } from './featureFlags';
+
+// Function to check if a property should be hidden based on "only for"
+function shouldHideProperty(property: SchemaProperty): boolean {
+  if (!property['only for']) return false;
+  
+  // Get current feature flags to check what categories to hide
+  const { showAdvancedFeatures } = getFeatureFlags();
+  
+  // If showing advanced features, don't hide anything based on category
+  if (showAdvancedFeatures) return false;
+  
+  // Convert to array if it's a single string
+  const onlyFor = Array.isArray(property['only for']) ? 
+    property['only for'] : [property['only for']];
+  
+  // Check if any category should be hidden
+  return onlyFor.some(category => isCategoryHidden(category));
+}
+
 function createNodeFromProperty(
   key: string,
   property: SchemaProperty,
   path: string,
   required: boolean = false
 ): TreeNode | null {
+  // Hide property if it's marked for developers only or experimental
+  if (property.hidden || shouldHideProperty(property)) {
+    return null;
+  }
+  
   // Handle $ref - resolve and expand it
   if (property.$ref) {
     const resolved = resolveReference(property.$ref)

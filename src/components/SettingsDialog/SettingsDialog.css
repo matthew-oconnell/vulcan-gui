@@ -1,0 +1,191 @@
+.settings-dialog-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-dialog {
+  background-color: #292929;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 400px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: #e0e0e0;
+}
+
+.settings-dialog-header {
+  padding: 16px 20px;
+  background-color: #333;
+  border-bottom: 1px solid #444;
+  display: flex;
+  align-items: center;
+}
+
+.settings-dialog-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+  color: #fff;
+}
+
+.settings-dialog-header .close-button {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+}
+
+.settings-dialog-header .close-button:hover {
+  color: #fff;
+  background-color: #444;
+}
+
+.settings-dialog-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.settings-section {
+  margin-bottom: 20px;
+}
+
+.settings-section h3 {
+  font-size: 14px;
+  margin: 0 0 12px 0;
+  color: #ccc;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #444;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.settings-option:hover {
+  background-color: #333;
+}
+
+.settings-option-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 10px;
+}
+
+.settings-option-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.settings-option-description {
+  font-size: 11px;
+  color: #999;
+}
+
+.settings-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.settings-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #444;
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.settings-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .settings-switch-slider {
+  background-color: #2196F3;
+}
+
+input:focus + .settings-switch-slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .settings-switch-slider:before {
+  transform: translateX(20px);
+}
+
+.settings-dialog-footer {
+  padding: 12px 20px;
+  background-color: #333;
+  border-top: 1px solid #444;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.settings-dialog-footer button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.settings-dialog-footer .cancel-button {
+  background-color: #444;
+  color: #ddd;
+}
+
+.settings-dialog-footer .cancel-button:hover {
+  background-color: #555;
+}
+
+.settings-dialog-footer .save-button {
+  background-color: #2196F3;
+  color: white;
+}
+
+.settings-dialog-footer .save-button:hover {
+  background-color: #0d8aee;
+}
