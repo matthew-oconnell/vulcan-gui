@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { BoundaryCondition } from '../../types/config'
 import { Surface } from '../../types/surface'
-import { loadBCTypeDescriptions } from '../../utils/bcTypeDescriptions'
+import { loadBCTypeDescriptions, loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
 import './BoundaryConditionDialog.css'
 
 // BC types that require a state reference
@@ -91,6 +91,7 @@ export default function BoundaryConditionDialog({
   const [wallTemperature, setWallTemperature] = useState<'adiabatic' | 'radiative equilibrium' | 'constant'>('adiabatic')
   const [constantTempValue, setConstantTempValue] = useState(300)
   const [bcDescriptions, setBcDescriptions] = useState<Record<string, string>>({})
+  const [availableBCTypes, setAvailableBCTypes] = useState<string[]>(BC_TYPES)
 
   // Get list of unassigned surfaces
   const getUnassignedSurfaces = (): Surface[] => {
@@ -125,6 +126,11 @@ export default function BoundaryConditionDialog({
   useEffect(() => {
     loadBCTypeDescriptions().then(descriptions => {
       setBcDescriptions(descriptions)
+    loadBCTypeInfo().then(() => {
+      // Filter BC types to only show those available for vulcan/hypersolve
+      const filtered = BC_TYPES.filter(type => isBCTypeAvailable(type))
+      setAvailableBCTypes(filtered)
+    })
     })
   }, [])
   const availableStates = Object.keys(configData.HyperSolve?.states || {})
@@ -236,7 +242,7 @@ export default function BoundaryConditionDialog({
               value={bcType}
               onChange={(e) => setBcType(e.target.value)}
             >
-              {BC_TYPES.map((type) => (
+              {availableBCTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>

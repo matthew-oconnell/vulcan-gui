@@ -4,6 +4,7 @@ import { useAppStore } from '../../store/appStore'
 import { BoundaryCondition } from '../../types/config'
 import StateWizard from './StateWizard'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
+import { loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
 import './EditorPanel.css'
 
 interface SchemaProperty {
@@ -71,6 +72,7 @@ function EditorPanel() {
   const [showStateWizard, setShowStateWizard] = useState(false)
   const [showBCDialog, setShowBCDialog] = useState(false)
   const [schema, setSchema] = useState<Schema | null>(null)
+  const [availableBCTypes, setAvailableBCTypes] = useState<string[]>(BC_TYPES)
   
   useEffect(() => {
     // Load the schema
@@ -78,6 +80,12 @@ function EditorPanel() {
       .then(response => response.json())
       .then(loadedSchema => setSchema(loadedSchema))
       .catch(error => console.error('Failed to load schema:', error))
+    
+    // Load and filter BC types
+    loadBCTypeInfo().then(() => {
+      const filtered = BC_TYPES.filter(type => isBCTypeAvailable(type))
+      setAvailableBCTypes(filtered)
+    })
   }, [])
   
   const { 
@@ -228,7 +236,7 @@ function EditorPanel() {
               onChange={(e) => updateBoundaryCondition(selectedBC.id, { type: e.target.value })}
             >
               <option value="">Select BC type...</option>
-              {BC_TYPES.map((type) => (
+              {availableBCTypes.map((type) => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
