@@ -1,9 +1,10 @@
-import { Edit3, Save, RotateCcw, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Edit3, Save, RotateCcw, Plus, Trash2, Eye, EyeOff, Maximize2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { BoundaryCondition } from '../../types/config'
 import StateWizard from './StateWizard'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
+import PropertyEditorDialog from '../PropertyEditorDialog/PropertyEditorDialog'
 import { loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
 import './EditorPanel.css'
 
@@ -71,6 +72,7 @@ const BC_TYPES = [
 function EditorPanel() {
   const [showStateWizard, setShowStateWizard] = useState(false)
   const [showBCDialog, setShowBCDialog] = useState(false)
+  const [showPropertyDialog, setShowPropertyDialog] = useState(false)
   const [schema, setSchema] = useState<Schema | null>(null)
   const [availableBCTypes, setAvailableBCTypes] = useState<string[]>(BC_TYPES)
   
@@ -594,6 +596,15 @@ function EditorPanel() {
         <div className="property-header">
           <h3 className="property-title">{selectedNode.label}</h3>
           <span className="property-type-badge">{selectedNode.type}</span>
+          {selectedNode.type === 'object' && (
+            <button 
+              className="icon-button"
+              onClick={() => setShowPropertyDialog(true)}
+              title="Open in larger window"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
         </div>
         
         {selectedNode.description && (
@@ -776,6 +787,16 @@ function EditorPanel() {
         <BoundaryConditionDialog
           isOpen={showBCDialog}
           onClose={() => setShowBCDialog(false)}
+        />
+      )}
+      
+      {showPropertyDialog && selectedNode && (
+        <PropertyEditorDialog
+          isOpen={showPropertyDialog}
+          onClose={() => setShowPropertyDialog(false)}
+          node={selectedNode}
+          schema={schema}
+          configData={configData}
         />
       )}
     </div>
