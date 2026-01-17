@@ -26,7 +26,7 @@ interface AppState {
   updateState: (id: string, updates: Partial<State>) => void
   deleteState: (id: string) => void
   initializeConfig: (projectConfig: any) => void
-  loadMesh: (parsedMesh: ParsedMesh, filename: string) => void
+  loadMesh: (parsedMesh: ParsedMesh, filename: string, lump?: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -263,10 +263,62 @@ export const useAppStore = create<AppState>((set) => ({
     }
   }),
   
-  loadMesh: (parsedMesh, filename) => set((s) => {
-    console.log('[App Store] Loading mesh:', filename, 'with', parsedMesh.regions.length, 'regions')
+  loadMesh: (parsedMesh, filename, lump = false) => set((s) => {
+    console.log('[App Store] Loading mesh:', filename, 'with', parsedMesh.regions.length, 'regions', lump ? '(lumping enabled)' : '')
     
-    const surfaces: Surface[] = parsedMesh.regions.map((region, index) => ({
+    let regionsToProcess = parsedMesh.regions
+    
+    // Apply lumping if requested
+    if (lump) {
+      console.log('[App Store] Lumping regions by tag name...')
+      
+      // Sort regions by tag number
+      const sortedRegions = [...parsedMesh.regions].sort((a, b) => a.tag - b.tag)
+      
+      // Track lumped surfaces by name
+      const lumpedSurfaces = new Map<string, RegionData>()
+      const nameToTag = new Map<string, number>()
+      let nextTag = 1
+      
+      // Process regions in sorted order
+      sortedRegions.forEach(region => {
+        if (lumpedSurfaces.has(region.name)) {
+          // Merge with existing lumped surface
+          const existing = lumpedSurfaces.get(region.name)!
+          console.log(`[App Store] Merging region "${region.name}" (tag ${region.tag}) with existing lumped surface (tag ${nameToTag.get(region.name)})`)
+          
+          // Combine vertices and normals
+          const combinedVertices = new Float32Array(existing.meshData.vertices.length + region.meshData.vertices.length)
+          const combinedNormals = new Float32Array(existing.meshData.normals.length + region.meshData.normals.length)
+          
+          combinedVertices.set(existing.meshData.vertices, 0)
+          combinedVertices.set(region.meshData.vertices, existing.meshData.vertices.length)
+          combinedNormals.set(existing.meshData.normals, 0)
+          combinedNormals.set(region.meshData.normals, existing.meshData.normals.length)
+          
+          existing.meshData.vertices = combinedVertices
+          existing.meshData.normals = combinedNormals
+        } else {
+          // First time seeing this name - create new lumped surface
+          console.log(`[App Store] Creating new lumped surface "${region.name}" with tag ${nextTag} (original tag ${region.tag})`)
+          nameToTag.set(region.name, nextTag)
+          lumpedSurfaces.set(region.name, {
+            name: region.name,
+            tag: nextTag,
+            meshData: {
+              vertices: new Float32Array(region.meshData.vertices),
+              normals: new Float32Array(region.meshData.normals)
+            }
+          })
+          nextTag++
+        }
+      })
+      
+      regionsToProcess = Array.from(lumpedSurfaces.values())
+      console.log(`[App Store] After lumping: ${regionsToProcess.length} surfaces (from ${parsedMesh.regions.length} original regions)`)
+    }
+    
+    const surfaces: Surface[] = regionsToProcess.map((region, index) => ({
       id: `mesh-surface-${region.tag}`,
       name: region.name,
       metadata: {

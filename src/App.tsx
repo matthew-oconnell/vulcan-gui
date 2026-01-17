@@ -13,6 +13,8 @@ import './App.css'
 function App() {
   const [showNewProjectWizard, setShowNewProjectWizard] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [showLumpDialog, setShowLumpDialog] = useState(false)
+  const [pendingMesh, setPendingMesh] = useState<{ parsedMesh: any; filename: string } | null>(null)
   const { configData, initializeConfig, loadMesh } = useAppStore()
 
   const handleNew = () => {
@@ -67,12 +69,38 @@ function App() {
         totalFaces: parsedMesh.totalFaces
       })
       
-      console.log('[App] Loading mesh regions into store...')
-      loadMesh(parsedMesh, file.name)
-      console.log('[App] Mesh loaded successfully!')
+      // Check if there are duplicate tag names
+      const tagNames = new Set<string>()
+      const hasDuplicates = parsedMesh.regions.some(region => {
+        if (tagNames.has(region.name)) {
+          return true
+        }
+        tagNames.add(region.name)
+        return false
+      })
+      
+      if (hasDuplicates) {
+        console.log('[App] Duplicate tag names detected, showing lumping dialog')
+        setPendingMesh({ parsedMesh, filename: file.name })
+        setShowLumpDialog(true)
+      } else {
+        console.log('[App] No duplicate tag names, loading mesh directly')
+        loadMesh(parsedMesh, file.name, false)
+        console.log('[App] Mesh loaded successfully!')
+      }
     } catch (error) {
       console.error('[App] Error loading mesh:', error)
     }
+  }
+
+  const handleLumpChoice = (lump: boolean) => {
+    if (pendingMesh) {
+      console.log('[App] Loading mesh with lump =', lump)
+      loadMesh(pendingMesh.parsedMesh, pendingMesh.filename, lump)
+      console.log('[App] Mesh loaded successfully!')
+    }
+    setShowLumpDialog(false)
+    setPendingMesh(null)
   }
 
   return (
@@ -127,6 +155,63 @@ function App() {
           onClose={() => setShowSettingsDialog(false)}
         />
       )}
+      
+      {showLumpDialog && pendingMesh && (() => {
+        // Calculate tag name counts
+        const tagNameCounts = new Map<string, number>()
+        pendingMesh.parsedMesh.regions.forEach((region: any) => {
+          tagNameCounts.set(region.name, (tagNameCounts.get(region.name) || 0) + 1)
+        })
+        
+        // Sort by tag number (first appearance) to match lumping order
+        const sortedRegions = [...pendingMesh.parsedMesh.regions].sort((a: any, b: any) => a.tag - b.tag)
+        const uniqueNames: string[] = []
+        const seenNames = new Set<string>()
+        sortedRegions.forEach((region: any) => {
+          if (!seenNames.has(region.name)) {
+            uniqueNames.push(region.name)
+            seenNames.add(region.name)
+          }
+        })
+        
+        return (
+          <div className="modal-overlay" onClick={() => {
+            setShowLumpDialog(false)
+            setPendingMesh(null)
+          }}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h2>Mesh Loading Options</h2>
+              <p>
+                The mesh file contains <strong>{pendingMesh.parsedMesh.regions.length}</strong> region(s) with duplicate tag names.
+              </p>
+              <div className="modal-info">
+                <p><strong>Lumped output mesh would contain {uniqueNames.length} surface(s):</strong></p>
+                <ul style={{ marginTop: '8px', marginBottom: '0', maxHeight: '200px', overflowY: 'auto' }}>
+                  {uniqueNames.map((name, index) => {
+                    const count = tagNameCounts.get(name) || 0
+                    return (
+                      <li key={name}>
+                        Tag {index + 1}: <strong>{name}</strong> ({count} region{count > 1 ? 's' : ''})
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+              <p>
+                Do you want to lump surfaces with the same tag name together?
+              </p>
+              <div className="modal-info">
+                <p><strong>Lump:</strong> Merge all regions with the same tag name into a single surface.</p>
+                <p><strong>Don't Lump:</strong> Keep each region as a separate surface.</p>
+              </div>
+              <div className="modal-buttons">
+                <button onClick={() => handleLumpChoice(true)}>Lump</button>
+                <button onClick={() => handleLumpChoice(false)}>Don't Lump</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
