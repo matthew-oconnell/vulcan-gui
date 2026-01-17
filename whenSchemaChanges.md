@@ -6,6 +6,7 @@ This document tracks hardcoded values that may need updating when `input.schema.
 
 ### 1. Boundary Condition Types
 **File:** `src/components/EditorPanel/EditorPanel.tsx` (lines ~7-22)
+**File:** `src/components/BoundaryConditionDialog/BoundaryConditionDialog.tsx` (lines ~25-70)
 
 **Hardcoded Array:**
 ```typescript
@@ -21,7 +22,7 @@ const BC_TYPES = [
 1. Look in schema at: `definitions["Boundary Condition"].oneOf[]`
 2. Each entry has a `$ref` pointing to a BC definition (e.g., `"#/definitions/Dirichlet"`)
 3. Each BC definition has a `type.enum` array with the type string
-4. Add any new BC type strings to the `BC_TYPES` array
+4. Add any new BC type strings to the `BC_TYPES` array in both files
 5. Remove any deprecated BC types
 
 **Example from Schema:**
@@ -36,12 +37,16 @@ const BC_TYPES = [
 }
 ```
 
+**✅ Automatic - BC Type Descriptions:**
+The boundary condition dialog automatically loads descriptions from the schema at runtime using `src/utils/bcTypeDescriptions.ts`. The description displayed below the BC type dropdown is extracted from each BC definition's `description` field. No manual updates needed when descriptions change.
+
 ---
 
 ### 2. BC Type-Specific Fields
 **File:** `src/components/EditorPanel/EditorPanel.tsx` (renderBCEditor function)
+**File:** `src/components/BoundaryConditionDialog/BoundaryConditionDialog.tsx` (conditional sections)
 
-**Hardcoded Logic:**
+**Hardcoded Logic in EditorPanel:**
 ```typescript
 {(selectedBC.type === 'dirichlet' || 
   selectedBC.type === 'strongly enforced dirichlet' ||
@@ -53,14 +58,27 @@ const BC_TYPES = [
 )}
 ```
 
+**Hardcoded Arrays in BoundaryConditionDialog:**
+```typescript
+const BC_TYPES_REQUIRING_STATE = [
+  'dirichlet', 'riemann', 'mass flux inflow', // ... etc
+]
+
+const BC_TYPES_WITH_WALL_TEMP = [
+  'no slip', 'wall matching', 'weak no slip'
+]
+```
+
 **How to Update:**
 1. Check each BC definition in the schema for its `required` and `properties` fields
-2. If a BC requires a `state` field, add its type to the conditional
-3. Add new conditional blocks for other BC-specific required fields
+2. If a BC requires a `state` field, add its type to the conditional and to `BC_TYPES_REQUIRING_STATE`
+3. If a BC requires `wall temperature`, add it to `BC_TYPES_WITH_WALL_TEMP`
+4. Add new conditional blocks for other BC-specific required fields in both files
 
 **Common Required Fields to Watch:**
 - `state` - Reference to a physical state
 - `mesh boundary tags` - Always present
+- `wall temperature` - For viscous wall types
 - BC-specific properties (varies by type)
 
 ---

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { BoundaryCondition } from '../../types/config'
 import StateWizard from './StateWizard'
+import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
 import './EditorPanel.css'
 
 interface SchemaProperty {
@@ -68,6 +69,7 @@ const BC_TYPES = [
 
 function EditorPanel() {
   const [showStateWizard, setShowStateWizard] = useState(false)
+  const [showBCDialog, setShowBCDialog] = useState(false)
   const [schema, setSchema] = useState<Schema | null>(null)
   
   useEffect(() => {
@@ -342,12 +344,7 @@ function EditorPanel() {
     const bcs = configData.HyperSolve?.['boundary conditions'] || []
     
     const handleAddBC = () => {
-      const newBC: BoundaryCondition = {
-        id: `bc-${Date.now()}`,
-        type: '',
-        'mesh boundary tags': []
-      }
-      addBoundaryCondition(newBC)
+      setShowBCDialog(true)
     }
     
     return (
@@ -714,6 +711,13 @@ function EditorPanel() {
         <StateWizard
           onClose={() => setShowStateWizard(false)}
           onCreate={(state) => addState(state)}
+        />
+      )}
+      
+      {showBCDialog && (
+        <BoundaryConditionDialog
+          isOpen={showBCDialog}
+          onClose={() => setShowBCDialog(false)}
         />
       )}
     </div>

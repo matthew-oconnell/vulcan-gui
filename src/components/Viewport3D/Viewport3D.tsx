@@ -6,6 +6,8 @@ import { Surface } from '../../types/surface'
 import { BoundaryCondition } from '../../types/config'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
+import { CameraControls, CameraToolbar } from './CameraToolbar'
+import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
 import './Viewport3D.css'
 
 // Sample surfaces with metadata
@@ -259,6 +261,9 @@ function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surfac
   
   return (
     <>
+      {/* Camera control functions */}
+      <CameraControls />
+      
       {/* Lighting */}
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 5]} intensity={1} />
@@ -327,6 +332,8 @@ function Viewport3D() {
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; surface: Surface } | null>(null)
+  const [showBCDialog, setShowBCDialog] = useState(false)
+  const [bcDialogInitialSurface, setBCDialogInitialSurface] = useState<Surface | undefined>(undefined)
   
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
@@ -399,19 +406,9 @@ function Viewport3D() {
   const handleCreateNewBC = () => {
     if (!contextMenu) return
     
-    const surfaceTag = contextMenu.surface.metadata.tag
-    const surfaceName = contextMenu.surface.metadata.tagName || `Surface ${surfaceTag}`
-    
-    // Create a new BC with this surface tag
-    const newBC: BoundaryCondition = {
-      id: `bc-${Date.now()}`,
-      name: `BC for ${surfaceName}`,
-      type: 'viscous wall', // Default type
-      'mesh boundary tags': surfaceTag,
-    }
-    
-    addBoundaryCondition(newBC)
-    setSelectedBC(newBC)
+    // Open the BC creation dialog with the selected surface
+    setBCDialogInitialSurface(contextMenu.surface)
+    setShowBCDialog(true)
     closeContextMenu()
   }
   
@@ -466,6 +463,9 @@ function Viewport3D() {
         >
           <Scene onSurfaceContextMenu={handleSurfaceContextMenu} />
         </Canvas>
+        
+        {/* Camera Toolbar */}
+        <CameraToolbar />
         
         {/* Overlay UI */}
         <div className="viewport-overlay">
@@ -549,6 +549,16 @@ function Viewport3D() {
           )
         })()}
       </div>
+      
+      {/* Boundary Condition Dialog */}
+      <BoundaryConditionDialog 
+        isOpen={showBCDialog}
+        onClose={() => {
+          setShowBCDialog(false)
+          setBCDialogInitialSurface(undefined)
+        }}
+        initialSurface={bcDialogInitialSurface}
+      />
     </div>
   )
 }
