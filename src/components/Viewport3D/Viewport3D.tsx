@@ -1,5 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber'
-import { OrbitControls, Grid } from '@react-three/drei'
+import { TrackballControls, Grid } from '@react-three/drei'
 import { Box as BoxIcon, Maximize2, Camera } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { Surface } from '../../types/surface'
@@ -201,12 +201,18 @@ function Scene() {
         infiniteGrid={false}
       />
 
-      {/* Camera controls */}
-      <OrbitControls 
+      {/* Camera controls - Trackball style like Paraview */}
+      <TrackballControls 
         makeDefault
-        enableDamping={false}
-        rotateSpeed={0.5}
-        zoomSpeed={0.8}
+        enableDamping={true}
+        dampingFactor={0.05}
+        rotateSpeed={1.5}
+        zoomSpeed={1.2}
+        panSpeed={0.8}
+        staticMoving={false}
+        dynamicDampingFactor={0.2}
+        minDistance={1}
+        maxDistance={100}
       />
     </>
   )
