@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { TreeNode } from '../utils/schemaParser'
 import { Surface } from '../types/surface'
 import { ConfigData, BoundaryCondition } from '../types/config'
-import { MeshData } from '../utils/stlParser'
+import { ParsedMesh } from '../utils/meshParser'
 
 interface AppState {
   selectedNode: TreeNode | null
@@ -17,7 +17,8 @@ interface AppState {
   setSoloBC: (bc: BoundaryCondition | null) => void
   configData: ConfigData
   availableSurfaces: Surface[]
-  meshData: MeshData | null
+  totalVertices: number
+  totalFaces: number
   addBoundaryCondition: (bc: BoundaryCondition) => void
   updateBoundaryCondition: (id: string, updates: Partial<BoundaryCondition>) => void
   deleteBoundaryCondition: (id: string) => void
@@ -25,7 +26,7 @@ interface AppState {
   updateState: (id: string, updates: Partial<State>) => void
   deleteState: (id: string) => void
   initializeConfig: (projectConfig: any) => void
-  loadMesh: (meshData: MeshData, filename: string) => void
+  loadMesh: (parsedMesh: ParsedMesh, filename: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -49,7 +50,8 @@ export const useAppStore = create<AppState>((set) => ({
   },
   
   availableSurfaces: [],
-  meshData: null,
+  totalVertices: 0,
+  totalFaces: 0,
   
   addBoundaryCondition: (bc) => set((state) => ({
     configData: {
@@ -261,26 +263,33 @@ export const useAppStore = create<AppState>((set) => ({
     }
   }),
   
-  loadMesh: (meshData, filename) => set((s) => {
-    console.log('[App Store] Loading mesh:', filename)
-    const surface: Surface = {
-      id: 'mesh-surface-1',
-      name: filename.replace('.stl', '') || 'Mesh',
+  loadMesh: (parsedMesh, filename) => set((s) => {
+    console.log('[App Store] Loading mesh:', filename, 'with', parsedMesh.regions.length, 'regions')
+    
+    const surfaces: Surface[] = parsedMesh.regions.map((region, index) => ({
+      id: `mesh-surface-${region.tag}`,
+      name: region.name,
       metadata: {
-        id: 'mesh-surface-1',
-        tag: 1,
-        tagName: 'mesh'
+        id: `mesh-surface-${region.tag}`,
+        tag: region.tag,
+        tagName: region.name.toLowerCase()
       },
       geometry: {
-        vertices: meshData.vertices,
-        normals: meshData.normals
+        vertices: region.meshData.vertices,
+        normals: region.meshData.normals
       }
-    }
-    console.log('[App Store] Surface created, updating store')
+    }))
+    
+    console.log('[App Store] Created', surfaces.length, 'surfaces')
+    surfaces.forEach(surf => {
+      console.log(`  - ${surf.name} (tag ${surf.metadata.tag}): ${surf.geometry!.vertices.length / 3} vertices`)
+    })
+    
     return {
       ...s,
-      meshData,
-      availableSurfaces: [surface],
+      availableSurfaces: surfaces,
+      totalVertices: parsedMesh.totalVertices,
+      totalFaces: parsedMesh.totalFaces,
       selectedSurface: null
     }
   })

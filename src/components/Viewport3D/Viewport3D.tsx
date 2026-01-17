@@ -33,41 +33,17 @@ function ClickableSurface({ surface }: { surface: Surface }) {
   
   const isSelected = selectedSurface?.id === surface.id
   
-  // Create geometry from Float32Array if available and center/scale it
-  const { geometry, scale, center } = useMemo(() => {
-    if (!surface.geometry) return { geometry: null, scale: 1, center: [0, 0, 0] as [number, number, number] }
+  // Create geometry from Float32Array if available (already centered and scaled globally)
+  const geometry = useMemo(() => {
+    if (!surface.geometry) return null
     
     const geom = new THREE.BufferGeometry()
     geom.setAttribute('position', new THREE.BufferAttribute(surface.geometry.vertices, 3))
     geom.setAttribute('normal', new THREE.BufferAttribute(surface.geometry.normals, 3))
     
-    // Compute bounding box to center and scale
-    geom.computeBoundingBox()
-    const bbox = geom.boundingBox!
-    const center = bbox.getCenter(new THREE.Vector3())
-    const size = bbox.getSize(new THREE.Vector3())
-    const maxDim = Math.max(size.x, size.y, size.z)
-    
-    // Center the geometry
-    geom.translate(-center.x, -center.y, -center.z)
-    
-    // Scale to fit in a 10-unit cube
-    const targetSize = 10
-    const scaleFactor = targetSize / maxDim
-    
-    console.log('[Viewport3D] Created BufferGeometry:', {
-      vertices: surface.geometry.vertices.length / 3,
-      originalCenter: [center.x, center.y, center.z],
-      originalSize: [size.x, size.y, size.z],
-      scaleFactor
-    })
-    
-    return { 
-      geometry: geom, 
-      scale: scaleFactor,
-      center: [0, 0, 0] as [number, number, number]
-    }
-  }, [surface.geometry])
+    console.log('[Viewport3D] Created BufferGeometry for', surface.name, ':', surface.geometry.vertices.length / 3, 'vertices')
+    return geom
+  }, [surface.geometry, surface.name])
   
   // Check if this surface belongs to the selected BC
   const belongsToSelectedBC = selectedBC ? (() => {
@@ -115,8 +91,6 @@ function ClickableSurface({ surface }: { surface: Surface }) {
       <mesh
         ref={meshRef}
         geometry={geometry}
-        scale={[scale, scale, scale]}
-        position={center}
         onClick={handleClick}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
@@ -183,19 +157,13 @@ function ClickableSurface({ surface }: { surface: Surface }) {
 }
 
 function Scene() {
-  const { camera, controls, scene } = useThree()
-  const { meshData, availableSurfaces } = useAppStore()
+  const { scene } = useThree()
+  const { availableSurfaces } = useAppStore()
   
   // Set background color
   useEffect(() => {
     scene.background = new THREE.Color(0x1a1a1a)
   }, [scene])
-  
-  // DON'T auto-move camera - mesh is now centered and scaled to fit in view
-  useEffect(() => {
-    if (!meshData) return
-    console.log('[Viewport3D] Mesh loaded, geometry is centered and scaled to fit')
-  }, [meshData])
   
   console.log('[Viewport3D] Rendering scene, availableSurfaces:', availableSurfaces.length)
   
@@ -245,10 +213,7 @@ function Scene() {
 }
 
 function Viewport3D() {
-  const { meshData } = useAppStore()
-  
-  const vertexCount = meshData ? meshData.vertices.length / 3 : 0
-  const faceCount = meshData ? meshData.vertices.length / 9 : 0
+  const { totalVertices, totalFaces } = useAppStore()
   
   return (
     <div className="panel viewport-panel">
@@ -279,8 +244,8 @@ function Viewport3D() {
         <div className="viewport-overlay">
           <div className="overlay-corner top-left">
             <div className="stats">
-              <div className="stat-item">Vertices: {vertexCount}</div>
-              <div className="stat-item">Faces: {faceCount}</div>
+              <div className="stat-item">Vertices: {totalVertices}</div>
+              <div className="stat-item">Faces: {totalFaces}</div>
             </div>
           </div>
           <div className="overlay-corner bottom-right">

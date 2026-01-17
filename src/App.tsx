@@ -7,7 +7,7 @@ import MenuBar from './components/MenuBar/MenuBar'
 import NewProjectWizard, { ProjectConfig } from './components/MenuBar/NewProjectWizard'
 import SettingsDialog from './components/SettingsDialog/SettingsDialog'
 import { useAppStore } from './store/appStore'
-import { pickSTLFile, parseSTL } from './utils/stlParser'
+import { pickMeshFile, parseMeshFile } from './utils/meshParser'
 import './App.css'
 
 function App() {
@@ -53,21 +53,22 @@ function App() {
   const handleLoadMesh = async () => {
     console.log('[App] Load Mesh clicked')
     try {
-      const file = await pickSTLFile()
+      const file = await pickMeshFile()
       if (!file) {
         console.log('[App] No file selected')
         return
       }
       
-      console.log('[App] Parsing STL file...')
-      const meshData = await parseSTL(file)
+      console.log('[App] Parsing mesh file...')
+      const parsedMesh = await parseMeshFile(file)
       console.log('[App] Mesh parsed successfully:', {
-        vertices: meshData.vertices.length / 3,
-        triangles: meshData.vertices.length / 9
+        regions: parsedMesh.regions.length,
+        totalVertices: parsedMesh.totalVertices,
+        totalFaces: parsedMesh.totalFaces
       })
       
-      console.log('[App] Loading mesh into store...')
-      loadMesh(meshData, file.name)
+      console.log('[App] Loading mesh regions into store...')
+      loadMesh(parsedMesh, file.name)
       console.log('[App] Mesh loaded successfully!')
     } catch (error) {
       console.error('[App] Error loading mesh:', error)
