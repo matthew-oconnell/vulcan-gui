@@ -1,9 +1,29 @@
 import { Edit3, Save, RotateCcw, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { BoundaryCondition } from '../../types/config'
 import StateWizard from './StateWizard'
 import './EditorPanel.css'
+
+interface SchemaProperty {
+  type?: string | string[]
+  description?: string
+  default?: any
+  properties?: Record<string, SchemaProperty>
+  items?: SchemaProperty
+  $ref?: string
+  oneOf?: SchemaProperty[]
+  anyOf?: SchemaProperty[]
+  allOf?: SchemaProperty[]
+  enum?: any[]
+  required?: string[]
+}
+
+interface Schema {
+  properties?: Record<string, SchemaProperty>
+  definitions?: Record<string, SchemaProperty>
+  required?: string[]
+}
 
 // List of BC types from the schema
 const BC_TYPES = [
@@ -48,6 +68,15 @@ const BC_TYPES = [
 
 function EditorPanel() {
   const [showStateWizard, setShowStateWizard] = useState(false)
+  const [schema, setSchema] = useState<Schema | null>(null)
+  
+  useEffect(() => {
+    // Load the schema
+    fetch('/input.schema.json')
+      .then(response => response.json())
+      .then(loadedSchema => setSchema(loadedSchema))
+      .catch(error => console.error('Failed to load schema:', error))
+  }, [])
   
   const { 
     selectedNode, 
@@ -79,6 +108,73 @@ function EditorPanel() {
       }
     }
     return value
+  }
+
+  // Helper function to get schema properties for a node path
+  const getSchemaForPath = (path: string): SchemaProperty | null => {
+    if (!schema) return null
+    
+    // Handle special Global node
+    if (path === 'root.global') {
+      return { type: 'object', properties: schema.properties }
+    }
+    
+    const parts = path.replace('root.', '').split('.')
+    let current: SchemaProperty | undefined = { properties: schema.properties }
+    
+    for (const part of parts) {
+      if (!current?.properties) return null
+      current = current.properties[part]
+      if (!current) return null
+      
+      // Resolve $ref if present
+      if (current.$ref && schema.definitions) {
+        const defName: string = current.$ref.replace('#/definitions/', '')
+        current = schema.definitions[defName]
+      }
+    }
+    
+    return current || null
+  }
+
+  // Helper function to check if a type is POD
+  const isPODType = (type: string | string[] | undefined): boolean => {
+    if (!type) return false
+    const typeStr = Array.isArray(type) ? type[0] : type
+    return typeStr === 'string' || typeStr === 'number' || typeStr === 'integer' || typeStr === 'boolean'
+  }
+
+  // Get POD properties from a schema object
+  const getPODProperties = (objSchema: SchemaProperty | null): Array<{key: string, prop: SchemaProperty, required: boolean}> => {
+    if (!objSchema?.properties) return []
+    
+    const podProps: Array<{key: string, prop: SchemaProperty, required: boolean}> = []
+    const requiredFields = objSchema.required || []
+    
+    for (const [key, prop] of Object.entries(objSchema.properties)) {
+      const propType = prop.type
+      
+      // Check if it's a POD type (not object or array of objects)
+      if (isPODType(propType)) {
+        podProps.push({
+          key,
+          prop,
+          required: requiredFields.includes(key)
+        })
+      } else if (propType === 'array' && prop.items) {
+        // Check if it's an array of primitives
+        const itemType = prop.items.type
+        if (isPODType(itemType)) {
+          podProps.push({
+            key,
+            prop,
+            required: requiredFields.includes(key)
+          })
+        }
+      }
+    }
+    
+    return podProps
   }
 
   const renderBCEditor = () => {
@@ -623,7 +719,6 @@ function EditorPanel() {
     if (!selectedNode) return null
 
     const actualValue = getValueFromPath(selectedNode.id)
-    const displayValue = actualValue !== undefined ? actualValue : selectedNode.default
 
     return (
       <div className="editor-content">
@@ -737,11 +832,103 @@ function EditorPanel() {
             </div>
           )}
 
-          {selectedNode.type === 'object' && (
-            <div className="info-box">
-              This is an object with nested properties. Expand it in the tree to edit its children.
-            </div>
-          )}
+          {selectedNode.type === 'object' && (() => {
+            const objSchema = getSchemaForPath(selectedNode.id)
+            const podProps = getPODProperties(objSchema)
+            const objValue = getValueFromPath(selectedNode.id) || {}
+            
+            if (podProps.length === 0) {
+              return (
+                <div className="info-box">
+                  This object has no primitive properties. Expand it in the tree to edit nested objects.
+                </div>
+              )
+            }
+            
+            return (
+              <div className="form-section">
+                <h4 style={{ marginBottom: '16px', color: '#b0b0b0', fontSize: '13px' }}>
+                  Properties
+                </h4>
+                {podProps.map(({ key, prop, required }) => {
+                  const value = objValue[key]
+                  const displayValue = value !== undefined ? value : prop.default
+                  const propType = Array.isArray(prop.type) ? prop.type[0] : prop.type
+                  
+                  return (
+                    <div key={key} className="form-group">
+                      <label className="form-label">
+                        {key}
+                        {required && <span style={{ color: '#ff6b6b' }}> *</span>}
+                      </label>
+                      {prop.description && (
+                        <div className="field-description" style={{ 
+                          fontSize: '12px', 
+                          color: '#888', 
+                          marginBottom: '8px' 
+                        }}>
+                          {prop.description}
+                        </div>
+                      )}
+                      
+                      {propType === 'boolean' ? (
+                        <div className="checkbox-group">
+                          <label>
+                            <input 
+                              type="radio" 
+                              name={`${selectedNode.id}.${key}`}
+                              value="true"
+                              defaultChecked={displayValue === true}
+                            /> True
+                          </label>
+                          <label>
+                            <input 
+                              type="radio" 
+                              name={`${selectedNode.id}.${key}`}
+                              value="false"
+                              defaultChecked={displayValue === false}
+                            /> False
+                          </label>
+                        </div>
+                      ) : prop.enum ? (
+                        <select 
+                          className="form-input"
+                          defaultValue={displayValue}
+                        >
+                          <option value="">-- Select --</option>
+                          {prop.enum.map((enumValue: any) => (
+                            <option key={enumValue} value={enumValue}>
+                              {enumValue}
+                            </option>
+                          ))}
+                        </select>
+                      ) : propType === 'array' ? (
+                        <div>
+                          <textarea 
+                            className="form-input"
+                            rows={3}
+                            defaultValue={Array.isArray(displayValue) ? JSON.stringify(displayValue) : '[]'}
+                            placeholder="Enter JSON array, e.g., [1, 2, 3]"
+                          />
+                        </div>
+                      ) : (
+                        <input 
+                          type={propType === 'integer' || propType === 'number' ? 'number' : 'text'}
+                          className="form-input"
+                          defaultValue={displayValue !== undefined ? displayValue : ''}
+                          placeholder={prop.default !== undefined ? `Default: ${prop.default}` : ''}
+                        />
+                      )}
+                      
+                      {prop.default !== undefined && value === undefined && (
+                        <span className="default-hint">Default: {JSON.stringify(prop.default)}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {selectedNode.schemaType && (
             <div className="info-box">

@@ -36,6 +36,26 @@ interface Schema {
 
 let cachedSchema: Schema | null = null
 
+// Helper function to check if a node is POD (Plain Old Data)
+function isPODNode(node: TreeNode): boolean {
+  return node.type === 'string' || 
+         node.type === 'number' || 
+         node.type === 'boolean' ||
+         (node.type as string) === 'integer' ||
+         (node.type === 'array' && !hasObjectItems(node))
+}
+
+// Helper function to check if an array contains objects
+function hasObjectItems(node: TreeNode): boolean {
+  // If it has children that are objects, it's an array of objects
+  if (node.children && node.children.length > 0) {
+    return node.children.some(child => child.type === 'object')
+  }
+  // Check schemaType for primitive arrays
+  const schemaType = node.schemaType
+  return schemaType === 'object' || (typeof schemaType === 'string' && schemaType.includes('object'))
+}
+
 export function buildTreeFromSchema(
   schema: Schema,
   requiredFields: string[] = []
@@ -49,6 +69,7 @@ export function buildTreeFromSchema(
 
   const properties = schema.properties
   const nodes: TreeNode[] = []
+  const globalPODFields: TreeNode[] = []
 
   for (const [key, prop] of Object.entries(properties)) {
     const property = prop as SchemaProperty
@@ -59,11 +80,30 @@ export function buildTreeFromSchema(
     }
 
     const isRequired = requiredFields.includes(key)
-    const node = createNodeFromProperty(key, property, `root.${key}`, isRequired)
+    const node = createNodeFromProperty(key, property, `root.${key}`, isRequired, true)
     
     if (node) {
-      nodes.push(node)
+      // Check if this is a POD field at root level
+      if (isPODNode(node)) {
+        globalPODFields.push(node)
+      } else {
+        nodes.push(node)
+      }
     }
+  }
+
+  // If there are global POD fields, create a "Global" node to contain them
+  if (globalPODFields.length > 0) {
+    const globalNode: TreeNode = {
+      id: 'root.global',
+      label: 'Global',
+      type: 'object',
+      description: 'Global configuration options',
+      children: globalPODFields,
+      expanded: false,
+      required: false
+    }
+    nodes.unshift(globalNode) // Add at the beginning
   }
 
   return nodes
@@ -102,7 +142,8 @@ function createNodeFromProperty(
   key: string,
   property: SchemaProperty,
   path: string,
-  required: boolean = false
+  required: boolean = false,
+  isRootLevel: boolean = false
 ): TreeNode | null {
   // Hide property if it's marked for developers only or experimental
   if (property.hidden || shouldHideProperty(property)) {
@@ -114,7 +155,7 @@ function createNodeFromProperty(
     const resolved = resolveReference(property.$ref)
     if (resolved) {
       // Create node from resolved reference
-      const node = createNodeFromProperty(key, resolved, path, required)
+      const node = createNodeFromProperty(key, resolved, path, required, isRootLevel)
       if (node) {
         // Keep the ref info for display
         node.schemaType = property.$ref
@@ -164,14 +205,14 @@ function createNodeFromProperty(
       if (!merged.default && resolvedSchema.default) merged.default = resolvedSchema.default
     }
     
-    return createNodeFromProperty(key, merged, path, required)
+    return createNodeFromProperty(key, merged, path, required, isRootLevel)
   }
 
   // Handle oneOf/anyOf - use the first option for now
   if (property.oneOf || property.anyOf) {
     const options = property.oneOf || property.anyOf
     if (options && options.length > 0) {
-      return createNodeFromProperty(key, options[0], path, required)
+      return createNodeFromProperty(key, options[0], path, required, isRootLevel)
     }
   }
 
@@ -190,10 +231,15 @@ function createNodeFromProperty(
             childKey,
             childProperty,
             `${path}.${childKey}`,
-            childRequired.includes(childKey)
+            childRequired.includes(childKey),
+            false
           )
           if (childNode) {
-            children.push(childNode)
+            // Only add non-POD children to the tree
+            // POD fields will be shown in the property editor instead
+            if (!isPODNode(childNode)) {
+              children.push(childNode)
+            }
           }
         }
       }
@@ -219,7 +265,7 @@ function createNodeFromProperty(
     if (property.items?.$ref) {
       const resolved = resolveReference(property.items.$ref)
       if (resolved) {
-        const itemNode = createNodeFromProperty('[items]', resolved, `${path}[items]`, false)
+        const itemNode = createNodeFromProperty('[items]', resolved, `${path}[items]`, false, false)
         if (itemNode) {
           children.push(itemNode)
         }

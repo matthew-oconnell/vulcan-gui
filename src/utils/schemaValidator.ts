@@ -71,7 +71,8 @@ export const validateAgainstSchema = (
     allErrors: true,
     strict: false, // Be lenient about schema format
     validateFormats: false, // Skip format validation
-    unknownFormats: 'ignore' // Ignore unknown formats
+    unknownFormats: 'ignore', // Ignore unknown formats
+    validateSchema: false // Skip meta-schema validation to avoid issues with $ref format
   });
   
   try {
