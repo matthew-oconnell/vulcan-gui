@@ -7,16 +7,21 @@ import Viewport3D from './components/Viewport3D/Viewport3D'
 import MenuBar from './components/MenuBar/MenuBar'
 import NewProjectWizard, { ProjectConfig } from './components/MenuBar/NewProjectWizard'
 import SettingsDialog from './components/SettingsDialog/SettingsDialog'
+import ValidationErrorDialog from './components/ValidationErrorDialog/ValidationErrorDialog'
 import { useAppStore } from './store/appStore'
 import { pickMeshFile, parseMeshFile } from './utils/meshParser'
+import { saveJsonFile } from './utils/fileUtils'
+import { validateAgainstSchema, ValidationErrorItem } from './utils/schemaValidator'
 import './App.css'
 
 function App() {
   const [showNewProjectWizard, setShowNewProjectWizard] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showLumpDialog, setShowLumpDialog] = useState(false)
+  const [showValidationErrors, setShowValidationErrors] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<ValidationErrorItem[]>([])
   const [pendingMesh, setPendingMesh] = useState<{ parsedMesh: any; filename: string } | null>(null)
-  const { configData, initializeConfig, loadMesh } = useAppStore()
+  const { configData, initializeConfig, loadMesh, availableSurfaces } = useAppStore()
 
   const handleNew = () => {
     setShowNewProjectWizard(true)
@@ -33,10 +38,90 @@ function App() {
     // TODO: Open file dialog and load configuration
   }
 
-  const handleSave = () => {
+  // Remove internal GUI fields (id, name, etc.) before saving
+  // Also convert mesh boundary tags from numbers to surface names
+  const cleanConfigForSave = (config: any): any => {
+    const cleaned = JSON.parse(JSON.stringify(config)) // Deep clone
+    
+    // Create a map of tag number to surface name
+    const tagToName = new Map<number, string>()
+    availableSurfaces.forEach(surface => {
+      tagToName.set(surface.metadata.tag, surface.metadata.tagName)
+    })
+    
+    // Remove 'id' and 'name' from boundary conditions
+    // Convert mesh boundary tags from numbers to surface names
+    if (cleaned.HyperSolve?.['boundary conditions']) {
+      cleaned.HyperSolve['boundary conditions'] = cleaned.HyperSolve['boundary conditions'].map((bc: any) => {
+        const { id, name, ...bcClean } = bc
+        
+        // Convert mesh boundary tags to surface names
+        if (bcClean['mesh boundary tags'] !== undefined) {
+          const tags = bcClean['mesh boundary tags']
+          if (Array.isArray(tags)) {
+            bcClean['mesh boundary tags'] = tags.map(tag => 
+              tagToName.get(tag) || tag
+            )
+          } else if (typeof tags === 'number') {
+            const surfaceName = tagToName.get(tags)
+            bcClean['mesh boundary tags'] = surfaceName ? [surfaceName] : [tags]
+          }
+        }
+        
+        return bcClean
+      })
+    }
+    
+    // Remove 'id' and 'name' from states if they have them
+    if (cleaned.HyperSolve?.states && typeof cleaned.HyperSolve.states === 'object') {
+      const cleanedStates: any = {}
+      Object.entries(cleaned.HyperSolve.states).forEach(([key, value]: [string, any]) => {
+        if (value && typeof value === 'object') {
+          const { id, name, ...stateClean } = value as any
+          cleanedStates[key] = stateClean
+        } else {
+          cleanedStates[key] = value
+        }
+      })
+      cleaned.HyperSolve.states = cleanedStates
+    }
+    
+    return cleaned
+  }
+
+  const handleSave = async () => {
     console.log('Save file')
     console.log('Current config:', configData)
-    // TODO: Save current configuration to file
+    console.log('Boundary conditions:', configData.HyperSolve?.['boundary conditions'])
+    console.log('Num BCs:', configData.HyperSolve?.['boundary conditions']?.length || 0)
+    
+    const configToSave = cleanConfigForSave(configData)
+    
+    // Load and validate against schema
+    try {
+      const schemaResponse = await fetch('/input.schema.json')
+      const schema = await schemaResponse.json()
+      
+      const { valid, errors } = validateAgainstSchema(schema, configToSave)
+      
+      if (!valid && errors) {
+        console.warn('Validation errors found:', errors)
+        console.warn('Number of errors:', errors.length)
+        const formattedErrors: ValidationErrorItem[] = errors.map(err => ({
+          message: err.message || 'Unknown error',
+          path: err.instancePath || undefined
+        }))
+        setValidationErrors(formattedErrors)
+        setShowValidationErrors(true)
+        return
+      }
+      
+      // Validation passed, save the file
+      await saveJsonFile(configToSave, 'config.json')
+      console.log('File saved successfully')
+    } catch (error) {
+      console.error('Error saving file:', error)
+    }
   }
 
   const handleValidate = () => {
@@ -162,6 +247,24 @@ function App() {
       {showSettingsDialog && (
         <SettingsDialog
           onClose={() => setShowSettingsDialog(false)}
+        />
+      )}
+
+      {showValidationErrors && (
+        <ValidationErrorDialog
+          errors={validationErrors}
+          onCancel={() => setShowValidationErrors(false)}
+          onContinue={async () => {
+            setShowValidationErrors(false)
+            // Save anyway - bypass validation
+            try {
+              const configToSave = cleanConfigForSave(configData)
+              await saveJsonFile(configToSave, 'config.json')
+              console.log('File saved successfully (validation bypassed)')
+            } catch (error) {
+              console.error('Error saving file:', error)
+            }
+          }}
         />
       )}
       

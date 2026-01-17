@@ -442,8 +442,15 @@ export const useAppStore = create<AppState>((set) => ({
       console.log(`  - ${surf.name} (tag ${surf.metadata.tag}): ${surf.geometry!.vertices.length / 3} vertices`)
     })
     
+    // Update mesh filename in config
+    const updatedConfigData = {
+      ...s.configData,
+      'mesh filename': filename
+    }
+    
     return {
       ...s,
+      configData: updatedConfigData,
       availableSurfaces: surfaces,
       totalVertices: parsedMesh.totalVertices,
       totalFaces: parsedMesh.totalFaces,

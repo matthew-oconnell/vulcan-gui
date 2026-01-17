@@ -15,15 +15,19 @@ const sanitizeSchema = (schema: Record<string, any>): Record<string, any> => {
   const nonStandardKeywords = [
     'only for',
     'hidden',
-    'examples',
-    'if',
-    'then',
-    'else'
+    'examples'
+    // Note: We keep 'if', 'then', 'else' as they are valid JSON Schema keywords
   ];
   
   // Function to recursively process schema objects
   const processObject = (obj: Record<string, any>): Record<string, any> => {
     const result: Record<string, any> = {};
+    
+    // If this object has a $ref, preserve it and don't process further
+    // $ref should be the only property in the object
+    if (obj.$ref) {
+      return { $ref: obj.$ref };
+    }
     
     // Process each property
     for (const [key, value] of Object.entries(obj)) {
@@ -72,16 +76,31 @@ export const validateAgainstSchema = (
     strict: false, // Be lenient about schema format
     validateFormats: false, // Skip format validation
     unknownFormats: 'ignore', // Ignore unknown formats
-    validateSchema: false // Skip meta-schema validation to avoid issues with $ref format
+    validateSchema: false, // Skip meta-schema validation to avoid issues with $ref format
+    strictSchema: false, // Don't validate the schema itself strictly
+    allowUnionTypes: true // Allow union types
   });
   
   try {
     // Sanitize the schema to remove non-standard keywords
     const cleanedSchema = sanitizeSchema(schema);
     
+    console.log('[Validator] Validating data against schema')
+    console.log('[Validator] Data keys:', Object.keys(data))
+    if (data.HyperSolve) {
+      console.log('[Validator] HyperSolve keys:', Object.keys(data.HyperSolve))
+    }
+    
     // Compile and validate
     const validate = ajv.compile(cleanedSchema);
     const valid = validate(data);
+    
+    if (!valid && validate.errors) {
+      console.log('[Validator] Validation failed with errors:', validate.errors.length)
+      console.log('[Validator] First few errors:', validate.errors.slice(0, 5))
+    } else {
+      console.log('[Validator] Validation passed!')
+    }
     
     return {
       valid: !!valid,
