@@ -142,6 +142,37 @@ function EditorPanel() {
         const defName: string = current.$ref.replace('#/definitions/', '')
         current = schema.definitions[defName]
       }
+      
+      // Handle allOf - merge all schemas together
+      if (current?.allOf) {
+        const merged: SchemaProperty = { type: 'object', properties: {} }
+        
+        for (const subSchema of current.allOf) {
+          let resolvedSchema = subSchema
+          
+          // Resolve $ref if present in allOf item
+          if (subSchema.$ref && schema.definitions) {
+            const defName = subSchema.$ref.replace('#/definitions/', '')
+            resolvedSchema = schema.definitions[defName] || subSchema
+          }
+          
+          // Merge properties
+          if (resolvedSchema.properties) {
+            merged.properties = { ...merged.properties, ...resolvedSchema.properties }
+          }
+          
+          // Merge required arrays
+          if (resolvedSchema.required) {
+            merged.required = [...(merged.required || []), ...resolvedSchema.required]
+          }
+          
+          // Copy other properties from first schema
+          if (!merged.description && resolvedSchema.description) merged.description = resolvedSchema.description
+          if (!merged.default && resolvedSchema.default) merged.default = resolvedSchema.default
+        }
+        
+        current = merged
+      }
     }
     
     return current || null
@@ -153,6 +184,38 @@ function EditorPanel() {
     const typeStr = Array.isArray(type) ? type[0] : type
     return typeStr === 'string' || typeStr === 'number' || typeStr === 'integer' || typeStr === 'boolean'
   }
+  
+  // Helper function to check if a property (including oneOf/anyOf) is POD
+  const isPropertyPOD = (prop: SchemaProperty): boolean => {
+    // Direct type check
+    if (prop.type) {
+      if (isPODType(prop.type)) {
+        return true
+      }
+      // Check for array of primitives
+      if (prop.type === 'array' && prop.items) {
+        const itemType = prop.items.type
+        if (isPODType(itemType)) {
+          return true
+        }
+      }
+      return false
+    }
+    
+    // Check oneOf/anyOf - consider it POD if all options are POD
+    if (prop.oneOf || prop.anyOf) {
+      const options = prop.oneOf || prop.anyOf
+      if (options && options.length > 0) {
+        return options.every(option => {
+          const optionType = option.type
+          if (!optionType) return false
+          return isPODType(optionType)
+        })
+      }
+    }
+    
+    return false
+  }
 
   // Get POD properties from a schema object
   const getPODProperties = (objSchema: SchemaProperty | null): Array<{key: string, prop: SchemaProperty, required: boolean}> => {
@@ -162,25 +225,12 @@ function EditorPanel() {
     const requiredFields = objSchema.required || []
     
     for (const [key, prop] of Object.entries(objSchema.properties)) {
-      const propType = prop.type
-      
-      // Check if it's a POD type (not object or array of objects)
-      if (isPODType(propType)) {
+      if (isPropertyPOD(prop)) {
         podProps.push({
           key,
           prop,
           required: requiredFields.includes(key)
         })
-      } else if (propType === 'array' && prop.items) {
-        // Check if it's an array of primitives
-        const itemType = prop.items.type
-        if (isPODType(itemType)) {
-          podProps.push({
-            key,
-            prop,
-            required: requiredFields.includes(key)
-          })
-        }
       }
     }
     
