@@ -11,6 +11,18 @@ export interface CameraSettings {
   invertZoom: boolean
 }
 
+export interface OverlayPosition {
+  x: number
+  y: number
+}
+
+export interface SurfaceRenderSettings {
+  surfaceColor: string
+  meshColor: string
+  renderMode: 'surface' | 'mesh' | 'both'
+  opacity: number
+}
+
 interface AppState {
   selectedNode: TreeNode | null
   setSelectedNode: (node: TreeNode | null) => void
@@ -28,6 +40,14 @@ interface AppState {
   totalFaces: number
   cameraSettings: CameraSettings
   updateCameraSettings: (settings: Partial<CameraSettings>) => void
+  overlayPosition: OverlayPosition
+  setOverlayPosition: (position: OverlayPosition) => void
+  surfaceVisibility: Record<string, boolean>
+  toggleSurfaceVisibility: (surfaceId: string) => void
+  surfaceWireframe: Record<string, boolean>
+  toggleSurfaceWireframe: (surfaceId: string) => void
+  surfaceRenderSettings: Record<string, SurfaceRenderSettings>
+  updateSurfaceRenderSettings: (surfaceId: string, settings: Partial<SurfaceRenderSettings>) => void
   addBoundaryCondition: (bc: BoundaryCondition) => void
   updateBoundaryCondition: (id: string, updates: Partial<BoundaryCondition>) => void
   deleteBoundaryCondition: (id: string) => void
@@ -72,6 +92,50 @@ export const useAppStore = create<AppState>((set) => ({
   
   updateCameraSettings: (settings) => set((state) => ({
     cameraSettings: { ...state.cameraSettings, ...settings }
+  })),
+  
+  // Overlay position with default in top-left
+  overlayPosition: {
+    x: 12,
+    y: 12
+  },
+  
+  setOverlayPosition: (position) => set({ overlayPosition: position }),
+  
+  // Surface visibility - all surfaces visible by default
+  surfaceVisibility: {},
+  
+  toggleSurfaceVisibility: (surfaceId) => set((state) => ({
+    surfaceVisibility: {
+      ...state.surfaceVisibility,
+      [surfaceId]: !(state.surfaceVisibility[surfaceId] ?? true)
+    }
+  })),
+  
+  // Surface wireframe - all surfaces solid by default
+  surfaceWireframe: {},
+  
+  toggleSurfaceWireframe: (surfaceId) => set((state) => ({
+    surfaceWireframe: {
+      ...state.surfaceWireframe,
+      [surfaceId]: !(state.surfaceWireframe[surfaceId] ?? false)
+    }
+  })),
+  
+  // Surface render settings with defaults
+  surfaceRenderSettings: {},
+  
+  updateSurfaceRenderSettings: (surfaceId, settings) => set((state) => ({
+    surfaceRenderSettings: {
+      ...state.surfaceRenderSettings,
+      [surfaceId]: {
+        surfaceColor: state.surfaceRenderSettings[surfaceId]?.surfaceColor ?? '#4a9eff',
+        meshColor: state.surfaceRenderSettings[surfaceId]?.meshColor ?? '#ffffff',
+        renderMode: state.surfaceRenderSettings[surfaceId]?.renderMode ?? 'surface',
+        opacity: state.surfaceRenderSettings[surfaceId]?.opacity ?? 1,
+        ...settings
+      }
+    }
   })),
   
   addBoundaryCondition: (bc) => set((state) => ({
@@ -288,6 +352,7 @@ export const useAppStore = create<AppState>((set) => ({
     console.log('[App Store] Loading mesh:', filename, 'with', parsedMesh.regions.length, 'regions', lump ? '(lumping enabled)' : '')
     
     let regionsToProcess = parsedMesh.regions
+    const regionCountMap = new Map<string, number>() // Track how many regions per surface name
     
     // Apply lumping if requested
     if (lump) {
@@ -300,6 +365,11 @@ export const useAppStore = create<AppState>((set) => ({
       const lumpedSurfaces = new Map<string, RegionData>()
       const nameToTag = new Map<string, number>()
       let nextTag = 1
+      
+      // Count regions per name
+      sortedRegions.forEach(region => {
+        regionCountMap.set(region.name, (regionCountMap.get(region.name) || 0) + 1)
+      })
       
       // Process regions in sorted order
       sortedRegions.forEach(region => {
@@ -337,6 +407,11 @@ export const useAppStore = create<AppState>((set) => ({
       
       regionsToProcess = Array.from(lumpedSurfaces.values())
       console.log(`[App Store] After lumping: ${regionsToProcess.length} surfaces (from ${parsedMesh.regions.length} original regions)`)
+    } else {
+      // Not lumping - each region is its own surface
+      regionsToProcess.forEach(region => {
+        regionCountMap.set(region.name, 1)
+      })
     }
     
     const surfaces: Surface[] = regionsToProcess.map((region, index) => ({
@@ -345,7 +420,9 @@ export const useAppStore = create<AppState>((set) => ({
       metadata: {
         id: `mesh-surface-${region.tag}`,
         tag: region.tag,
-        tagName: region.name.toLowerCase()
+        tagName: region.name.toLowerCase(),
+        isLumped: lump && (regionCountMap.get(region.name) || 1) > 1,
+        originalRegionCount: regionCountMap.get(region.name) || 1
       },
       geometry: {
         vertices: region.meshData.vertices,

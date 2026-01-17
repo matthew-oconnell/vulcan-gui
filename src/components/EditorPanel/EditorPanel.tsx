@@ -505,197 +505,13 @@ function EditorPanel() {
     )
   }
 
-  const renderSurfaceEditor = () => {
-    if (!selectedSurface) return null
-    
-    const bcs = configData.HyperSolve?.['boundary conditions'] || []
-    const surfaceTag = selectedSurface.metadata.tag
-    
-    const handleAssignToBC = (bcId: string) => {
-      const bc = bcs.find(b => b.id === bcId)
-      if (!bc) return
-      
-      const currentTags = bc['mesh boundary tags']
-      let newTags: number[] = []
-      
-      // Convert current tags to array
-      if (Array.isArray(currentTags)) {
-        newTags = currentTags.map(t => typeof t === 'number' ? t : parseInt(t as string, 10))
-      } else if (typeof currentTags === 'number') {
-        newTags = [currentTags]
-      } else if (typeof currentTags === 'string') {
-        // Try to parse comma-separated or range
-        newTags = currentTags.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
-      }
-      
-      // Add surface tag if not already present
-      if (!newTags.includes(surfaceTag)) {
-        newTags.push(surfaceTag)
-        updateBoundaryCondition(bcId, { 'mesh boundary tags': newTags })
-      }
-    }
-    const handleRemoveFromBC = (bcId: string) => {
-      const bc = bcs.find(b => b.id === bcId)
-      if (!bc) return
-      
-      const currentTags = bc['mesh boundary tags']
-      let newTags: number[] = []
-      
-      // Convert current tags to array
-      if (Array.isArray(currentTags)) {
-        newTags = currentTags.map(t => typeof t === 'number' ? t : parseInt(t as string, 10))
-      } else if (typeof currentTags === 'number') {
-        newTags = [currentTags]
-      } else if (typeof currentTags === 'string') {
-        newTags = currentTags.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
-      }
-      
-      // Remove surface tag
-      newTags = newTags.filter(t => t !== surfaceTag)
-      
-      // Update BC with new tags
-      updateBoundaryCondition(bcId, { 
-        'mesh boundary tags': newTags.length === 0 ? [] : newTags 
-      })
-    }
-    
-    // Check which BCs contain this surface tag
-    const assignedBCs = bcs.filter(bc => {
-      const tags = bc['mesh boundary tags']
-      if (Array.isArray(tags)) {
-        return (tags as any[]).includes(surfaceTag) || (tags as any[]).includes(String(surfaceTag))
-      } else if (typeof tags === 'number') {
-        return tags === surfaceTag
-      } else if (typeof tags === 'string') {
-        return tags.split(',').map(s => parseInt(s.trim(), 10)).includes(surfaceTag)
-      }
-      return false
-    })
-    
-    return (
-      <div className="editor-content">
-        <div className="property-header">
-          <h3 className="property-title">{selectedSurface.name}</h3>
-          <span className="property-type-badge">Surface</span>
-        </div>
-        
-        <p className="property-description">
-          Configure boundary condition metadata for this surface region
-        </p>
-
-        <div className="form-section">
-          <div className="form-group">
-            <label className="form-label">Tag (ID)</label>
-            <input 
-              type="number" 
-              className="form-input" 
-              defaultValue={selectedSurface.metadata.tag}
-              placeholder="Enter tag number..."
-              readOnly
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Tag Name</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              defaultValue={selectedSurface.metadata.tagName}
-              placeholder="Enter tag name..."
-              readOnly
-            />
-          </div>
-
-          {bcs.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Assign to Boundary Condition</label>
-              <select 
-                className="form-input"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAssignToBC(e.target.value)
-                    e.target.value = '' // Reset selection
-                  }
-                }}
-                defaultValue=""
-              >
-                <option value="">Select BC to add surface...</option>
-                {bcs.map((bc, idx) => (
-                  <option key={bc.id} value={bc.id}>
-                    {bc.type || 'Unnamed BC'} ({idx})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {assignedBCs.length > 0 && (
-            <div className="info-box">
-              <strong>Assigned to:</strong>
-              <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', listStyle: 'none' }}>
-                {assignedBCs.map((bc) => (
-                  <li 
-                    key={bc.id}
-                    style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    <span
-                      style={{ cursor: 'pointer', color: '#4da6ff', flex: 1 }}
-                      onClick={() => setSelectedBC(bc)}
-                      title="Click to edit this BC"
-                    >
-                      {bc.name || bc.type || 'Unnamed BC'}
-                    </span>
-                    <button
-                      className="icon-button"
-                      style={{ fontSize: '11px', padding: '2px 6px', color: '#f48771' }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveFromBC(bc.id)
-                      }}
-                      title="Remove surface from this BC"
-                    >
-                      remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {bcs.length === 0 && (
-            <div className="info-box">
-              There are no BCs defined.{' '}
-              <span 
-                style={{ color: '#4da6ff', cursor: 'pointer', textDecoration: 'underline' }}
-                onClick={() => {
-                  const newBC: BoundaryCondition = {
-                    id: `bc-${Date.now()}`,
-                    name: selectedSurface.metadata.tagName || selectedSurface.name || '',
-                    type: '',
-                    'mesh boundary tags': [selectedSurface.metadata.tag]
-                  }
-                  addBoundaryCondition(newBC)
-                }}
-              >
-                Create a new one
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   const renderEditor = () => {
-    // Priority: State > BC > Surface > Node
+    // Priority: State > BC > Node
     if (selectedState) {
       return renderStateEditor()
     }
     if (selectedBC) {
       return renderBCEditor()
-    }
-    if (selectedSurface) {
-      return renderSurfaceEditor()
     }
     if (selectedNode) {
       // Check if this is the boundary conditions array node
@@ -710,7 +526,7 @@ function EditorPanel() {
     }
     return (
       <div className="editor-placeholder">
-        <p className="placeholder-text">Select an item from the tree or a surface to edit</p>
+        <p className="placeholder-text">Select an item from the configuration tree to edit</p>
       </div>
     )
   }

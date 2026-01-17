@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import TreePanel from './components/TreePanel/TreePanel'
 import EditorPanel from './components/EditorPanel/EditorPanel'
+import SurfacesPanel from './components/SurfacesPanel/SurfacesPanel'
 import Viewport3D from './components/Viewport3D/Viewport3D'
 import MenuBar from './components/MenuBar/MenuBar'
 import NewProjectWizard, { ProjectConfig } from './components/MenuBar/NewProjectWizard'
@@ -115,20 +116,28 @@ function App() {
         onLoadMesh={handleLoadMesh}
       />
       <PanelGroup direction="horizontal">
-        {/* Left Panel Group - contains tree and editor vertically stacked */}
+        {/* Left Panel Group - contains tree, editor, and surfaces vertically stacked */}
         <Panel defaultSize={25} minSize={15} maxSize={40}>
           <PanelGroup direction="vertical">
             {/* Tree Panel - Top */}
-            <Panel defaultSize={50} minSize={20}>
+            <Panel defaultSize={33} minSize={15}>
               <TreePanel />
             </Panel>
             
             {/* Vertical Resize Handle */}
             <PanelResizeHandle className="resize-handle resize-handle-vertical" />
             
-            {/* Editor Panel - Bottom */}
-            <Panel defaultSize={50} minSize={20}>
+            {/* Editor Panel - Middle */}
+            <Panel defaultSize={34} minSize={15}>
               <EditorPanel />
+            </Panel>
+            
+            {/* Vertical Resize Handle */}
+            <PanelResizeHandle className="resize-handle resize-handle-vertical" />
+            
+            {/* Surfaces Panel - Bottom */}
+            <Panel defaultSize={33} minSize={15}>
+              <SurfacesPanel />
             </Panel>
           </PanelGroup>
         </Panel>

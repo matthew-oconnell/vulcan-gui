@@ -45,9 +45,21 @@
   pointer-events: none;
 }
 
+.stats-overlay {
+  position: absolute;
+  pointer-events: auto;
+  cursor: move;
+  user-select: none;
+}
+
 .top-left {
   top: 12px;
   left: 12px;
+}
+
+.top-right {
+  top: 12px;
+  right: 12px;
 }
 
 .bottom-right {
@@ -97,4 +109,67 @@
 
 .axis-label:nth-child(3) {
   color: #4a9eff;
+}
+
+.surface-metadata {
+  background-color: rgba(0, 0, 0, 0.6);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #cccccc;
+  font-family: 'Courier New', monospace;
+  min-width: 150px;
+}
+
+.metadata-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.metadata-row {
+  margin-bottom: 3px;
+  color: #cccccc;
+}
+
+.metadata-row:last-child {
+  margin-bottom: 0;
+}
+
+.metadata-row.unassigned {
+  color: #f48771;
+}
+
+/* Context menu */
+.context-menu {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 4px 0;
+  min-width: 200px;
+  z-index: 1000;
+  font-size: 12px;
+}
+
+.context-menu-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #cccccc;
+  transition: background-color 0.1s;
+}
+
+.context-menu-item:hover {
+  background-color: #3a3a3a;
+  color: #ffffff;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background-color: #3a3a3a;
+  margin: 4px 0;
 }

@@ -2,6 +2,8 @@ export interface SurfaceMetadata {
   id: string
   tag: number
   tagName: string
+  isLumped?: boolean
+  originalRegionCount?: number
 }
 
 export interface MeshGeometry {

@@ -3,6 +3,7 @@ import { TrackballControls, Grid } from '@react-three/drei'
 import { Box as BoxIcon, Maximize2, Camera } from 'lucide-react'
 import { useAppStore } from '../../store/appStore'
 import { Surface } from '../../types/surface'
+import { BoundaryCondition } from '../../types/config'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import './Viewport3D.css'
@@ -26,12 +27,28 @@ const sampleSurfaces: Surface[] = [
   }
 ]
 
-function ClickableSurface({ surface }: { surface: Surface }) {
+function ClickableSurface({ 
+  surface, 
+  onContextMenu 
+}: { 
+  surface: Surface
+  onContextMenu: (e: any, surface: Surface) => void
+}) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const { selectedSurface, setSelectedSurface, selectedBC, soloBC } = useAppStore()
+  const edgesRef = useRef<THREE.LineSegments>(null)
+  const { selectedSurface, setSelectedSurface, selectedBC, soloBC, surfaceVisibility, surfaceRenderSettings } = useAppStore()
   const [hovered, setHovered] = useState(false)
   
   const isSelected = selectedSurface?.id === surface.id
+  const isVisible = surfaceVisibility[surface.id] ?? true
+  
+  // Get render settings with defaults
+  const settings = surfaceRenderSettings[surface.id] ?? {
+    surfaceColor: '#4a9eff',
+    meshColor: '#ffffff',
+    renderMode: 'surface' as const,
+    opacity: 1
+  }
   
   // Create geometry from Float32Array if available (already centered and scaled globally)
   const geometry = useMemo(() => {
@@ -75,34 +92,105 @@ function ClickableSurface({ surface }: { surface: Surface }) {
     return false
   })() : true // Show all surfaces if no BC is soloed
   
+  // Don't render if surface is hidden
+  if (!isVisible) {
+    return null
+  }
+  
   // Don't render if BC is soloed and this surface doesn't belong to it
   if (soloBC && !belongsToSoloBC) {
     return null
   }
+  
+  // Track right-click position to differentiate click from drag (use ref for immediate access)
+  const rightClickStartRef = useRef<{ x: number; y: number } | null>(null)
   
   const handleClick = (e: any) => {
     e.stopPropagation()
     setSelectedSurface(surface)
   }
   
+  const handlePointerDown = (e: any) => {
+    // Track right-click start position
+    if (e.button === 2) {
+      console.log('Right click down on surface:', surface.metadata.tagName, e.clientX, e.clientY)
+      rightClickStartRef.current = { x: e.clientX, y: e.clientY }
+    }
+  }
+  
+  const handleContextMenu = (e: any) => {
+    e.stopPropagation()
+    
+    console.log('Context menu event on surface:', surface.metadata.tagName, 'rightClickStart:', rightClickStartRef.current)
+    
+    // Check if mouse moved significantly from click start (drag threshold = 5px)
+    if (rightClickStartRef.current) {
+      const dx = e.clientX - rightClickStartRef.current.x
+      const dy = e.clientY - rightClickStartRef.current.y
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      
+      console.log('Distance moved:', distance)
+      
+      if (distance < 5) {
+        // It was a click, not a drag - show context menu
+        console.log('Calling onContextMenu')
+        onContextMenu(e, surface)
+      }
+      
+      rightClickStartRef.current = null
+    }
+  }
+  
+  // Determine display color (highlight overrides custom color)
+  const displayColor = isSelected ? '#ffd700' : hovered ? '#ffffff' : settings.surfaceColor
+  const emissive = isSelected ? '#aa8800' : hovered ? '#444444' : '#000000'
+  const emissiveIntensity = isSelected ? 0.5 : hovered ? 0.2 : 0
+  
   // If we have geometry from mesh, use it
   if (geometry) {
+    const showSurface = settings.renderMode === 'surface' || settings.renderMode === 'both'
+    const showMesh = settings.renderMode === 'mesh' || settings.renderMode === 'both'
+    
     return (
-      <mesh
-        ref={meshRef}
-        geometry={geometry}
-        onClick={handleClick}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <meshStandardMaterial 
-          color={isSelected ? '#ffd700' : hovered ? '#ffffff' : '#4a9eff'}
-          emissive={isSelected ? '#aa8800' : hovered ? '#444444' : '#000000'}
-          emissiveIntensity={isSelected ? 0.5 : hovered ? 0.2 : 0}
-          side={THREE.DoubleSide}
-          flatShading={true}
-        />
-      </mesh>
+      <group>
+        {/* Surface mesh */}
+        {showSurface && (
+          <mesh
+            ref={meshRef}
+            geometry={geometry}
+            onClick={handleClick}
+            onPointerDown={handlePointerDown}
+            onContextMenu={handleContextMenu}
+            onPointerOver={() => setHovered(true)}
+            onPointerOut={() => setHovered(false)}
+          >
+            <meshStandardMaterial 
+              color={displayColor}
+              emissive={emissive}
+              emissiveIntensity={emissiveIntensity}
+              side={THREE.DoubleSide}
+              flatShading={true}
+              transparent={settings.opacity < 1}
+              opacity={settings.opacity}
+            />
+          </mesh>
+        )}
+        
+        {/* Mesh edges */}
+        {showMesh && (
+          <lineSegments
+            ref={edgesRef}
+            onClick={handleClick}
+            onPointerDown={handlePointerDown}
+            onContextMenu={handleContextMenu}
+            onPointerOver={() => setHovered(true)}
+            onPointerOut={() => setHovered(false)}
+          >
+            <edgesGeometry args={[geometry]} />
+            <lineBasicMaterial color={settings.meshColor} />
+          </lineSegments>
+        )}
+      </group>
     )
   }
   
@@ -115,48 +203,50 @@ function ClickableSurface({ surface }: { surface: Surface }) {
                                           surface.id === 'surface-2' ? [1, 1, 1] : 
                                           [1.5, 0.5, 1.5]
   
-  const baseColor = surface.id === 'surface-1' ? '#4a9eff' : 
-                    surface.id === 'surface-2' ? '#ff6b6b' : 
-                    '#51cf66'
-  
-  // Determine color based on state
-  let color = baseColor
-  let emissive = '#000000'
-  let emissiveIntensity = 0
-  
-  if (isSelected) {
-    color = '#ffd700' // Gold for direct selection
-    emissive = '#aa8800'
-    emissiveIntensity = 0.5
-  } else if (belongsToSelectedBC) {
-    color = '#ff9800' // Orange for BC membership
-    emissive = '#cc6600'
-    emissiveIntensity = 0.3
-  } else if (hovered) {
-    color = '#ffffff'
-    emissive = '#444444'
-    emissiveIntensity = 0.2
-  }
+  const showSurface = settings.renderMode === 'surface' || settings.renderMode === 'both'
+  const showMesh = settings.renderMode === 'mesh' || settings.renderMode === 'both'
   
   return (
-    <mesh
-      ref={meshRef}
-      position={position}
-      onClick={handleClick}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      <boxGeometry args={size} />
-      <meshStandardMaterial 
-        color={color}
-        emissive={emissive}
-        emissiveIntensity={emissiveIntensity}
-      />
-    </mesh>
+    <group position={position}>
+      {/* Surface mesh */}
+      {showSurface && (
+        <mesh
+          ref={meshRef}
+          onClick={handleClick}
+          onPointerDown={handlePointerDown}
+          onContextMenu={handleContextMenu}
+          onPointerOver={() => setHovered(true)}
+          onPointerOut={() => setHovered(false)}
+        >
+          <boxGeometry args={size} />
+          <meshStandardMaterial 
+            color={displayColor}
+            emissive={emissive}
+            emissiveIntensity={emissiveIntensity}
+            transparent={settings.opacity < 1}
+            opacity={settings.opacity}
+          />
+        </mesh>
+      )}
+      
+      {/* Mesh edges */}
+      {showMesh && (
+        <lineSegments
+          onClick={handleClick}
+          onPointerDown={handlePointerDown}
+          onContextMenu={handleContextMenu}
+          onPointerOver={() => setHovered(true)}
+          onPointerOut={() => setHovered(false)}
+        >
+          <edgesGeometry args={[new THREE.BoxGeometry(...size)]} />
+          <lineBasicMaterial color={settings.meshColor} />
+        </lineSegments>
+      )}
+    </group>
   )
 }
 
-function Scene() {
+function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surface: Surface) => void }) {
   const { scene } = useThree()
   const { availableSurfaces, cameraSettings } = useAppStore()
   
@@ -178,11 +268,11 @@ function Scene() {
       {/* Surfaces from mesh or samples */}
       {availableSurfaces.length > 0 ? (
         availableSurfaces.map((surface) => (
-          <ClickableSurface key={surface.id} surface={surface} />
+          <ClickableSurface key={surface.id} surface={surface} onContextMenu={onSurfaceContextMenu} />
         ))
       ) : (
         sampleSurfaces.map((surface) => (
-          <ClickableSurface key={surface.id} surface={surface} />
+          <ClickableSurface key={surface.id} surface={surface} onContextMenu={onSurfaceContextMenu} />
         ))
       )}
 
@@ -224,7 +314,132 @@ function Scene() {
 }
 
 function Viewport3D() {
-  const { totalVertices, totalFaces } = useAppStore()
+  const { 
+    totalVertices, 
+    totalFaces, 
+    overlayPosition, 
+    setOverlayPosition, 
+    selectedSurface, 
+    configData,
+    addBoundaryCondition,
+    setSelectedBC
+  } = useAppStore()
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; surface: Surface } | null>(null)
+  
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true)
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDragOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+  }
+  
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return
+    
+    const viewportContent = document.querySelector('.viewport-content')
+    if (!viewportContent) return
+    
+    const rect = viewportContent.getBoundingClientRect()
+    const statsElement = document.querySelector('.stats') as HTMLElement
+    if (!statsElement) return
+    
+    const statsRect = statsElement.getBoundingClientRect()
+    
+    let newX = e.clientX - rect.left - dragOffset.x
+    let newY = e.clientY - rect.top - dragOffset.y
+    
+    // Keep within bounds
+    newX = Math.max(0, Math.min(newX, rect.width - statsRect.width))
+    newY = Math.max(0, Math.min(newY, rect.height - statsRect.height))
+    
+    setOverlayPosition({ x: newX, y: newY })
+  }
+  
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+  
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isDragging, dragOffset])
+  
+  const handleSurfaceContextMenu = (e: any, surface: Surface) => {
+    // R3F events don't have preventDefault directly
+    if (e.nativeEvent) {
+      e.nativeEvent.preventDefault()
+    }
+    console.log('handleSurfaceContextMenu called:', surface.metadata.tagName, e.clientX, e.clientY)
+    setContextMenu({ x: e.clientX, y: e.clientY, surface })
+  }
+  
+  const closeContextMenu = () => {
+    setContextMenu(null)
+  }
+  
+  const handleAddToBC = () => {
+    if (!contextMenu) return
+    
+    // TODO: Show dialog to select which BC to add the surface to
+    // For now, just log it
+    console.log('Add surface to BC:', contextMenu.surface)
+    closeContextMenu()
+  }
+  
+  const handleCreateNewBC = () => {
+    if (!contextMenu) return
+    
+    const surfaceTag = contextMenu.surface.metadata.tag
+    const surfaceName = contextMenu.surface.metadata.tagName || `Surface ${surfaceTag}`
+    
+    // Create a new BC with this surface tag
+    const newBC: BoundaryCondition = {
+      id: `bc-${Date.now()}`,
+      name: `BC for ${surfaceName}`,
+      type: 'viscous wall', // Default type
+      'mesh boundary tags': surfaceTag,
+    }
+    
+    addBoundaryCondition(newBC)
+    setSelectedBC(newBC)
+    closeContextMenu()
+  }
+  
+  const handleAddToVisualization = () => {
+    if (!contextMenu) return
+    
+    // TODO: Show dialog to select which visualization to add the surface to
+    console.log('Add surface to visualization:', contextMenu.surface)
+    closeContextMenu()
+  }
+  
+  const handleCreateNewVisualization = () => {
+    if (!contextMenu) return
+    
+    // TODO: Implement surface visualization creation
+    console.log('Create new surface visualization:', contextMenu.surface)
+    closeContextMenu()
+  }
+  
+  // Close context menu on click outside
+  useEffect(() => {
+    if (contextMenu) {
+      window.addEventListener('click', closeContextMenu)
+      return () => {
+        window.removeEventListener('click', closeContextMenu)
+      }
+    }
+  }, [contextMenu])
   
   return (
     <div className="panel viewport-panel">
@@ -247,18 +462,64 @@ function Viewport3D() {
         <Canvas
           camera={{ position: [5, 5, 5], fov: 50 }}
           shadows
+          onContextMenu={(e) => e.preventDefault()}
         >
-          <Scene />
+          <Scene onSurfaceContextMenu={handleSurfaceContextMenu} />
         </Canvas>
         
         {/* Overlay UI */}
         <div className="viewport-overlay">
-          <div className="overlay-corner top-left">
+          <div 
+            className="stats-overlay" 
+            style={{ 
+              left: `${overlayPosition.x}px`, 
+              top: `${overlayPosition.y}px` 
+            }}
+            onMouseDown={handleMouseDown}
+          >
             <div className="stats">
               <div className="stat-item">Vertices: {totalVertices}</div>
               <div className="stat-item">Faces: {totalFaces}</div>
             </div>
           </div>
+          
+          {/* Surface metadata overlay */}
+          {selectedSurface && (
+            <div className="overlay-corner top-right">
+              <div className="surface-metadata">
+                <div className="metadata-header">{selectedSurface.name}</div>
+                <div className="metadata-row">Tag: {selectedSurface.metadata.tag}</div>
+                {selectedSurface.metadata.isLumped && selectedSurface.metadata.originalRegionCount && (
+                  <div className="metadata-row">
+                    Lumped: {selectedSurface.metadata.originalRegionCount} region{selectedSurface.metadata.originalRegionCount > 1 ? 's' : ''}
+                  </div>
+                )}
+                {(() => {
+                  const bcs = configData.HyperSolve?.['boundary conditions'] || []
+                  const associatedBC = bcs.find(bc => {
+                    const tags = bc['mesh boundary tags']
+                    const surfaceTag = selectedSurface.metadata.tag
+                    
+                    if (Array.isArray(tags)) {
+                      return tags.includes(surfaceTag) || tags.includes(String(surfaceTag))
+                    } else if (typeof tags === 'number') {
+                      return tags === surfaceTag
+                    } else if (typeof tags === 'string') {
+                      return tags.split(',').map(s => parseInt(s.trim(), 10)).includes(surfaceTag)
+                    }
+                    return false
+                  })
+                  
+                  return associatedBC ? (
+                    <div className="metadata-row">BC: {associatedBC.name || 'Unnamed'}</div>
+                  ) : (
+                    <div className="metadata-row unassigned">No BC assigned</div>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
+          
           <div className="overlay-corner bottom-right">
             <div className="axis-indicator">
               <div className="axis-label">X</div>
@@ -267,6 +528,26 @@ function Viewport3D() {
             </div>
           </div>
         </div>
+        
+        {/* Context menu */}
+        {contextMenu && selectedSurface && (() => {
+          const hasBCs = configData?.HyperSolve?.['boundary conditions']?.length > 0
+          const hasVisualizations = false // TODO: Check when visualizations are implemented
+          
+          return (
+            <div 
+              className="context-menu"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {hasBCs && <div className="context-menu-item" onClick={handleAddToBC}>Add to BC</div>}
+              <div className="context-menu-item" onClick={handleCreateNewBC}>Create new BC from surface</div>
+              {(hasBCs || hasVisualizations) && <div className="context-menu-separator" />}
+              {hasVisualizations && <div className="context-menu-item" onClick={handleAddToVisualization}>Add to Visualization</div>}
+              <div className="context-menu-item" onClick={handleCreateNewVisualization}>Create new surface visualization</div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
