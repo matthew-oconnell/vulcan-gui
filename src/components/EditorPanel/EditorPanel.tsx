@@ -718,8 +718,6 @@ function EditorPanel() {
   const renderNodeEditor = () => {
     if (!selectedNode) return null
 
-    const actualValue = getValueFromPath(selectedNode.id)
-
     return (
       <div className="editor-content">
         <div className="property-header">
@@ -736,102 +734,6 @@ function EditorPanel() {
             <div className="required-badge">Required Field</div>
           )}
 
-          {/* Debug display of actual value */}
-          <div className="info-box" style={{ marginBottom: '16px' }}>
-            <strong>Current Value:</strong>
-            <pre style={{ 
-              marginTop: '8px', 
-              padding: '8px', 
-              background: '#1e1e1e', 
-              borderRadius: '4px',
-              fontSize: '12px',
-              maxHeight: '200px',
-              overflow: 'auto'
-            }}>
-              {actualValue !== undefined 
-                ? JSON.stringify(actualValue, null, 2) 
-                : '<not set - using schema default>'}
-            </pre>
-          </div>
-
-          {selectedNode.enum && selectedNode.enum.length > 0 ? (
-            <div className="form-group">
-              <label className="form-label">Value</label>
-              <select 
-                className="form-input" 
-                defaultValue={selectedNode.default as string || selectedNode.enum[0]}
-              >
-                {selectedNode.enum.map((value, index) => (
-                  <option key={index} value={String(value)}>
-                    {String(value)}
-                  </option>
-                ))}
-              </select>
-              {selectedNode.default !== undefined && (
-                <span className="default-hint">Default: {String(selectedNode.default)}</span>
-              )}
-            </div>
-          ) : selectedNode.type === 'string' && (
-            <div className="form-group">
-              <label className="form-label">Value</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                defaultValue={selectedNode.default as string || ''}
-                placeholder={selectedNode.default ? String(selectedNode.default) : 'Enter value...'}
-              />
-            </div>
-          )}
-
-          {selectedNode.type === 'number' && (
-            <div className="form-group">
-              <label className="form-label">Value</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                defaultValue={selectedNode.default as number}
-                placeholder={selectedNode.default !== undefined ? String(selectedNode.default) : 'Enter number...'}
-              />
-            </div>
-          )}
-
-          {selectedNode.type === 'boolean' && (
-            <div className="form-group">
-              <label className="form-label">Value</label>
-              <div className="checkbox-group">
-                <label>
-                  <input 
-                    type="radio" 
-                    name={`bool-${selectedNode.id}`} 
-                    value="true"
-                    defaultChecked={selectedNode.default === true}
-                  /> True
-                </label>
-                <label>
-                  <input 
-                    type="radio" 
-                    name={`bool-${selectedNode.id}`} 
-                    value="false"
-                    defaultChecked={selectedNode.default === false}
-                  /> False
-                </label>
-              </div>
-              {selectedNode.default !== undefined && (
-                <span className="default-hint">Default: {String(selectedNode.default)}</span>
-              )}
-            </div>
-          )}
-
-          {selectedNode.type === 'array' && (
-            <div className="form-group">
-              <label className="form-label">Array Items</label>
-              <button className="add-button">+ Add Item</button>
-              {selectedNode.default !== undefined && (
-                <div className="default-hint">Default: {JSON.stringify(selectedNode.default)}</div>
-              )}
-            </div>
-          )}
-
           {selectedNode.type === 'object' && (() => {
             const objSchema = getSchemaForPath(selectedNode.id)
             const podProps = getPODProperties(objSchema)
@@ -845,55 +747,99 @@ function EditorPanel() {
               )
             }
             
-            return (
-              <div className="form-section">
-                <h4 style={{ marginBottom: '16px', color: '#b0b0b0', fontSize: '13px' }}>
-                  Properties
-                </h4>
-                {podProps.map(({ key, prop, required }) => {
-                  const value = objValue[key]
-                  const displayValue = value !== undefined ? value : prop.default
-                  const propType = Array.isArray(prop.type) ? prop.type[0] : prop.type
-                  
-                  return (
-                    <div key={key} className="form-group">
-                      <label className="form-label">
+            return podProps.map(({ key, prop, required }) => {
+              const value = objValue[key]
+              const displayValue = value !== undefined ? value : prop.default
+              const propType = Array.isArray(prop.type) ? prop.type[0] : prop.type
+              
+              return (
+                <div key={key} className="form-group">
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    gap: '16px'
+                  }}>
+                    <div style={{ flex: '0 0 auto', minWidth: 0 }}>
+                      <label className="form-label" style={{ marginBottom: 0 }}>
                         {key}
                         {required && <span style={{ color: '#ff6b6b' }}> *</span>}
                       </label>
                       {prop.description && (
-                        <div className="field-description" style={{ 
-                          fontSize: '12px', 
+                        <div style={{ 
+                          fontSize: '11px', 
                           color: '#888', 
-                          marginBottom: '8px' 
+                          marginTop: '2px',
+                          maxWidth: '300px'
                         }}>
                           {prop.description}
                         </div>
                       )}
-                      
+                    </div>
+                    
+                    <div style={{ flex: '0 0 auto', minWidth: '200px', maxWidth: '300px' }}>
                       {propType === 'boolean' ? (
-                        <div className="checkbox-group">
-                          <label>
-                            <input 
-                              type="radio" 
-                              name={`${selectedNode.id}.${key}`}
-                              value="true"
-                              defaultChecked={displayValue === true}
-                            /> True
-                          </label>
-                          <label>
-                            <input 
-                              type="radio" 
-                              name={`${selectedNode.id}.${key}`}
-                              value="false"
-                              defaultChecked={displayValue === false}
-                            /> False
-                          </label>
-                        </div>
+                        <label style={{ 
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: '50px',
+                          height: '24px',
+                          cursor: 'pointer'
+                        }}>
+                          <input 
+                            type="checkbox"
+                            defaultChecked={displayValue === true}
+                            style={{ 
+                              position: 'absolute',
+                              opacity: 0,
+                              width: '100%',
+                              height: '100%',
+                              cursor: 'pointer',
+                              zIndex: 1
+                            }}
+                            onChange={(e) => {
+                              const toggle = e.target.nextElementSibling as HTMLElement
+                              const knob = toggle?.firstChild as HTMLElement
+                              if (toggle && knob) {
+                                if (e.target.checked) {
+                                  toggle.style.backgroundColor = '#4da6ff'
+                                  knob.style.left = '28px'
+                                } else {
+                                  toggle.style.backgroundColor = '#444'
+                                  knob.style.left = '4px'
+                                }
+                              }
+                            }}
+                          />
+                          <span style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: displayValue ? '#4da6ff' : '#444',
+                            borderRadius: '24px',
+                            transition: 'background-color 0.2s',
+                            pointerEvents: 'none'
+                          }}>
+                            <span style={{
+                              position: 'absolute',
+                              content: '""',
+                              height: '18px',
+                              width: '18px',
+                              left: displayValue ? '28px' : '4px',
+                              bottom: '3px',
+                              backgroundColor: 'white',
+                              borderRadius: '50%',
+                              transition: 'left 0.2s'
+                            }} />
+                          </span>
+                        </label>
                       ) : prop.enum ? (
                         <select 
                           className="form-input"
                           defaultValue={displayValue}
+                          style={{ width: '100%' }}
                         >
                           <option value="">-- Select --</option>
                           {prop.enum.map((enumValue: any) => (
@@ -903,38 +849,28 @@ function EditorPanel() {
                           ))}
                         </select>
                       ) : propType === 'array' ? (
-                        <div>
-                          <textarea 
-                            className="form-input"
-                            rows={3}
-                            defaultValue={Array.isArray(displayValue) ? JSON.stringify(displayValue) : '[]'}
-                            placeholder="Enter JSON array, e.g., [1, 2, 3]"
-                          />
-                        </div>
+                        <textarea 
+                          className="form-input"
+                          rows={2}
+                          defaultValue={Array.isArray(displayValue) ? JSON.stringify(displayValue) : '[]'}
+                          placeholder="[...]"
+                          style={{ width: '100%', fontSize: '12px' }}
+                        />
                       ) : (
                         <input 
                           type={propType === 'integer' || propType === 'number' ? 'number' : 'text'}
                           className="form-input"
                           defaultValue={displayValue !== undefined ? displayValue : ''}
-                          placeholder={prop.default !== undefined ? `Default: ${prop.default}` : ''}
+                          placeholder={prop.default !== undefined ? String(prop.default) : ''}
+                          style={{ width: '100%' }}
                         />
                       )}
-                      
-                      {prop.default !== undefined && value === undefined && (
-                        <span className="default-hint">Default: {JSON.stringify(prop.default)}</span>
-                      )}
                     </div>
-                  )
-                })}
-              </div>
-            )
+                  </div>
+                </div>
+              )
+            })
           })()}
-
-          {selectedNode.schemaType && (
-            <div className="info-box">
-              <strong>Schema Reference:</strong> {selectedNode.schemaType}
-            </div>
-          )}
         </div>
       </div>
     )

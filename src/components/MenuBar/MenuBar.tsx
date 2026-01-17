@@ -7,9 +7,10 @@ interface MenuBarProps {
   onSave?: () => void
   onValidate?: () => void
   onExit?: () => void
+  onSettings?: () => void
 }
 
-function MenuBar({ onNew, onOpen, onSave, onValidate, onExit }: MenuBarProps) {
+function MenuBar({ onNew, onOpen, onSave, onValidate, onExit, onSettings }: MenuBarProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -87,6 +88,26 @@ function MenuBar({ onNew, onOpen, onSave, onValidate, onExit }: MenuBarProps) {
             >
               <span className="menu-option-label">Exit</span>
               <span className="menu-option-shortcut">Ctrl+Q</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="menu-item">
+        <button 
+          className={`menu-button ${openMenu === 'edit' ? 'active' : ''}`}
+          onClick={() => handleMenuClick('edit')}
+        >
+          Edit
+        </button>
+        {openMenu === 'edit' && (
+          <div className="menu-dropdown">
+            <button 
+              className="menu-option" 
+              onClick={() => handleMenuItemClick(onSettings || (() => console.log('Settings')))}
+            >
+              <span className="menu-option-label">Settings</span>
+              <span className="menu-option-shortcut">Ctrl+,</span>
             </button>
           </div>
         )}

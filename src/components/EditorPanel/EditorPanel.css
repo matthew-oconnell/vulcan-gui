@@ -1,5 +1,5 @@
 .editor-panel {
-  font-size: 13px;
+  font-size: var(--editor-font-size, 16px);
 }
 
 .panel-actions {
@@ -53,14 +53,14 @@
 }
 
 .property-title {
-  font-size: 16px;
+  font-size: 22px;
   font-weight: 600;
   color: #cccccc;
   margin: 0;
 }
 
 .property-type-badge {
-  font-size: 11px;
+  font-size: 14px;
   color: #858585;
   background-color: #3e3e42;
   padding: 3px 8px;
@@ -69,7 +69,7 @@
 
 .property-description {
   color: #b0b0b0;
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.5;
   margin-bottom: 16px;
   padding: 8px 12px;
@@ -159,7 +159,7 @@
   display: block;
   margin-bottom: 4px;
   color: #cccccc;
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .form-input {
@@ -169,7 +169,7 @@
   border: 1px solid #3e3e42;
   border-radius: 3px;
   color: #cccccc;
-  font-size: 13px;
+  font-size: 16px;
   font-family: inherit;
 }
 

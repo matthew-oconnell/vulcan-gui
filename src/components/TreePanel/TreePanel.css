@@ -1,48 +1,5 @@
 .tree-panel {
-  font-size: 13px;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-}
-
-.panel-header span {
-  flex: 1;
-  margin-left: 8px;
-}
-
-.panel-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.advanced-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background-color: #333;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 11px;
-  color: #999;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.advanced-toggle:hover {
-  background-color: #444;
-}
-
-.advanced-toggle.active {
-  background-color: #4c4c4c;
-  color: #fff;
-}
-
-.advanced-toggle span {
-  margin-left: 0;
+  font-size: var(--tree-font-size, 13px);
 }
 
 .tree-node {
@@ -62,17 +19,6 @@
 
 .tree-node-content:hover {
   background-color: #2a2d2e;
-}
-
-@keyframes highlight-pulse {
-  0% { background-color: rgba(255, 193, 7, 0.3); }
-  50% { background-color: rgba(255, 193, 7, 0.6); }
-  100% { background-color: rgba(255, 193, 7, 0.3); }
-}
-
-.highlight-animate {
-  animation: highlight-pulse 1s ease-in-out 2;
-  border-left: 2px solid #ffca28;
 }
 
 .tree-node-content.selected {
