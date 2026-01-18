@@ -1244,6 +1244,24 @@ function EditorPanel() {
               </div>
 
               <div className="form-group">
+                <label className="form-label">Flip Cylinder Direction</label>
+                <button
+                  className="form-button"
+                  onClick={() => {
+                    // Swap points A and B to flip the cylinder direction
+                    const tempA = region.a
+                    const tempB = region.b
+                    handleUpdate({ 
+                      a: tempB,
+                      b: tempA
+                    })
+                  }}
+                >
+                  Flip Normal
+                </button>
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Snap to Surface Normal</label>
                 <select
                   className="form-input"
@@ -1279,11 +1297,11 @@ function EditorPanel() {
                       sumZ / count
                     ]
                     
-                    // Average normal
+                    // Average normal (flipped)
                     let avgNormal: [number, number, number] = [
-                      sumNx / count,
-                      sumNy / count,
-                      sumNz / count
+                      -sumNx / count,
+                      -sumNy / count,
+                      -sumNz / count
                     ]
                     
                     // Normalize

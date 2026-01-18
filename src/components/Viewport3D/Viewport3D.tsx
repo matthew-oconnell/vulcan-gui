@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { CameraControls, CameraToolbar } from './CameraToolbar'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
+import { ArrowGizmo } from './CylinderGizmo'
 import SurfaceAlreadyAssignedDialog from '../SurfaceAlreadyAssignedDialog/SurfaceAlreadyAssignedDialog'
 import ConfirmBCDeletionDialog from '../ConfirmBCDeletionDialog/ConfirmBCDeletionDialog'
 import './Viewport3D.css'
@@ -253,14 +254,49 @@ function ClickableSurface({
 function InitializationRegionCylinder({ region, isSelected, regionIndex, controlsRef }: { region: any; isSelected: boolean; regionIndex: number; controlsRef: React.RefObject<any> }) {
   const { configData, setConfigData } = useAppStore()
   const { gl, raycaster, camera } = useThree()
-  const [hoveredPoint, setHoveredPoint] = useState<'a' | 'b' | null>(null)
-  const [draggingPoint, setDraggingPoint] = useState<'a' | 'b' | null>(null)
-  const dragStartPoint = useRef<THREE.Vector3 | null>(null)
-  const dragStartValue = useRef<[number, number, number] | null>(null)
+  const [hoveredPoint, setHoveredPoint] = useState<string | null>(null)
+  const [draggingPoint, setDraggingPoint] = useState<string | null>(null)
+  const dragStartMouse = useRef<THREE.Vector3 | null>(null)
+  const dragStartA = useRef<[number, number, number] | null>(null)
+  const dragStartB = useRef<[number, number, number] | null>(null)
+  const dragStartRadius = useRef<number | null>(null)
+  const dragStartRadiusA = useRef<number | null>(null)
+  const dragStartRadiusB = useRef<number | null>(null)
   
   const a = region.a || [0, 0, 0]
   const b = region.b || [1, 0, 0]
   const radius = region.radius || 0.5
+  const radiusA = region.radiusA ?? radius
+  const radiusB = region.radiusB ?? radius
+  
+  // Compute cylinder axis and perpendicular directions for gizmos
+  const { axisDir, perp1, perp2 } = useMemo(() => {
+    const start = new THREE.Vector3(a[0], a[1], a[2])
+    const end = new THREE.Vector3(b[0], b[1], b[2])
+    const axis = new THREE.Vector3().subVectors(end, start)
+    const length = axis.length()
+    axis.normalize()
+    
+    // Create two perpendicular vectors
+    const perpendicular1 = new THREE.Vector3()
+    if (Math.abs(axis.x) < 0.9) {
+      perpendicular1.set(1, 0, 0)
+    } else {
+      perpendicular1.set(0, 1, 0)
+    }
+    perpendicular1.crossVectors(perpendicular1, axis).normalize()
+    
+    const perpendicular2 = new THREE.Vector3().crossVectors(axis, perpendicular1).normalize()
+    
+    return {
+      axisDir: axis,
+      perp1: perpendicular1,
+      perp2: perpendicular2
+    }
+  }, [a, b])
+  
+  // Fixed world-space gizmo size (independent of camera and cylinder size)
+  const gizmoScale = 0.5
   
   // Compute cylinder dimensions for widget scaling
   const cylinderSize = useMemo(() => {
@@ -286,20 +322,20 @@ function InitializationRegionCylinder({ region, isSelected, regionIndex, control
     direction.normalize()
     const quat = new THREE.Quaternion().setFromUnitVectors(axis, direction)
     
-    const geom = new THREE.CylinderGeometry(radius, radius, length, 16, 1, true)
+    const geom = new THREE.CylinderGeometry(radiusB, radiusA, length, 16, 1, false)
     
     return { cylinderGeometry: geom, position: pos, quaternion: quat }
-  }, [a, b, radius])
+  }, [a, b, radiusA, radiusB])
   
   // Global pointer move handler
   useEffect(() => {
-    if (!draggingPoint || !dragStartPoint.current || !dragStartValue.current) return
+    if (!draggingPoint || !dragStartMouse.current) return
     
     const handleGlobalPointerMove = (event: PointerEvent) => {
       event.stopPropagation()
       event.preventDefault()
       
-      if (!dragStartPoint.current || !dragStartValue.current) return
+      if (!dragStartMouse.current || !dragStartA.current || !dragStartB.current) return
       
       const canvas = gl.domElement
       const rect = canvas.getBoundingClientRect()
@@ -309,52 +345,135 @@ function InitializationRegionCylinder({ region, isSelected, regionIndex, control
       const mouse = new THREE.Vector2(x, y)
       raycaster.setFromCamera(mouse, camera)
       
-      const pointWorldPos = new THREE.Vector3(
-        dragStartValue.current[0],
-        dragStartValue.current[1],
-        dragStartValue.current[2]
-      )
+      let updates: any = {}
       
-      const cameraDir = new THREE.Vector3()
-      camera.getWorldDirection(cameraDir)
+      // Sensitivity multiplier to slow down gizmo movements
+      const gizmoSensitivity = 0.3
       
-      const plane = new THREE.Plane()
-      plane.setFromNormalAndCoplanarPoint(cameraDir, pointWorldPos)
-      
-      const intersection = new THREE.Vector3()
-      raycaster.ray.intersectPlane(plane, intersection)
-      
-      if (intersection) {
-        const movement = new THREE.Vector3()
-        movement.subVectors(intersection, dragStartPoint.current)
+      // Handle gizmo arrow drags
+      if (draggingPoint.startsWith('axis-') || draggingPoint.startsWith('radius-')) {
+        const startPoint = draggingPoint.includes('-a') ? dragStartA.current : dragStartB.current
+        const pointWorldPos = new THREE.Vector3(startPoint[0], startPoint[1], startPoint[2])
         
-        const newPoint: [number, number, number] = [
-          dragStartValue.current[0] + movement.x,
-          dragStartValue.current[1] + movement.y,
-          dragStartValue.current[2] + movement.z
-        ]
-        
-        if (configData.HyperSolve?.['initialization regions']) {
-          const updatedRegions = [...configData.HyperSolve['initialization regions']]
-          updatedRegions[regionIndex] = {
-            ...region,
-            [draggingPoint]: newPoint
+        if (draggingPoint.startsWith('axis-')) {
+          // Orange arrow: constrain movement along cylinder axis
+          const cameraDir = new THREE.Vector3()
+          camera.getWorldDirection(cameraDir)
+          const plane = new THREE.Plane()
+          plane.setFromNormalAndCoplanarPoint(cameraDir, pointWorldPos)
+          
+          const intersection = new THREE.Vector3()
+          raycaster.ray.intersectPlane(plane, intersection)
+          
+          if (intersection) {
+            const movement = new THREE.Vector3().subVectors(intersection, dragStartMouse.current)
+            const axisMovement = movement.dot(axisDir) * gizmoSensitivity
+            
+            const newPoint: [number, number, number] = [
+              startPoint[0] + axisDir.x * axisMovement,
+              startPoint[1] + axisDir.y * axisMovement,
+              startPoint[2] + axisDir.z * axisMovement
+            ]
+            
+            updates[draggingPoint.includes('-a') ? 'a' : 'b'] = newPoint
           }
-          setConfigData({
-            ...configData,
-            HyperSolve: {
-              ...configData.HyperSolve,
-              'initialization regions': updatedRegions
-            }
-          })
+        } else if (draggingPoint.startsWith('radius-uniform')) {
+          // Blue arrow: change uniform radius
+          const plane = new THREE.Plane()
+          plane.setFromNormalAndCoplanarPoint(axisDir, pointWorldPos)
+          
+          const intersection = new THREE.Vector3()
+          raycaster.ray.intersectPlane(plane, intersection)
+          
+          if (intersection) {
+            const offset = new THREE.Vector3().subVectors(intersection, dragStartMouse.current)
+            const radialChange = offset.dot(perp2) * gizmoSensitivity
+            
+            // Scale both radii by adding the same delta to each
+            const newRadiusA = Math.max(0.01, (dragStartRadiusA.current || radiusA) + radialChange)
+            const newRadiusB = Math.max(0.01, (dragStartRadiusB.current || radiusB) + radialChange)
+            const newRadius = Math.max(0.01, (dragStartRadius.current || radius) + radialChange)
+            
+            updates.radius = newRadius
+            updates.radiusA = newRadiusA
+            updates.radiusB = newRadiusB
+          }
+        } else if (draggingPoint === 'radius-a' || draggingPoint === 'radius-b') {
+          // Green/Red arrow: change per-endpoint radius
+          const plane = new THREE.Plane()
+          plane.setFromNormalAndCoplanarPoint(axisDir, pointWorldPos)
+          
+          const intersection = new THREE.Vector3()
+          raycaster.ray.intersectPlane(plane, intersection)
+          
+          if (intersection) {
+            const offset = new THREE.Vector3().subVectors(intersection, dragStartMouse.current)
+            const radialChange = offset.dot(perp1) * gizmoSensitivity
+            const startRadius = draggingPoint === 'radius-a' ? 
+              (dragStartRadiusA.current || radiusA) : 
+              (dragStartRadiusB.current || radiusB)
+            const newRadius = Math.max(0.01, startRadius + radialChange)
+            
+            updates[draggingPoint === 'radius-a' ? 'radiusA' : 'radiusB'] = newRadius
+          }
         }
+      } else {
+        // Handle sphere widget drags (original logic)
+        const pointWorldPos = new THREE.Vector3(
+          dragStartA.current[0],
+          dragStartA.current[1],
+          dragStartA.current[2]
+        )
+        
+        const cameraDir = new THREE.Vector3()
+        camera.getWorldDirection(cameraDir)
+        
+        const plane = new THREE.Plane()
+        plane.setFromNormalAndCoplanarPoint(cameraDir, pointWorldPos)
+        
+        const intersection = new THREE.Vector3()
+        raycaster.ray.intersectPlane(plane, intersection)
+        
+        if (intersection) {
+          const movement = new THREE.Vector3()
+          movement.subVectors(intersection, dragStartMouse.current)
+          
+          const startPoint = draggingPoint === 'a' ? dragStartA.current : dragStartB.current
+          const newPoint: [number, number, number] = [
+            startPoint[0] + movement.x,
+            startPoint[1] + movement.y,
+            startPoint[2] + movement.z
+          ]
+          
+          updates[draggingPoint] = newPoint
+        }
+      }
+      
+      // Apply updates
+      if (Object.keys(updates).length > 0 && configData.HyperSolve?.['initialization regions']) {
+        const updatedRegions = [...configData.HyperSolve['initialization regions']]
+        updatedRegions[regionIndex] = {
+          ...region,
+          ...updates
+        }
+        setConfigData({
+          ...configData,
+          HyperSolve: {
+            ...configData.HyperSolve,
+            'initialization regions': updatedRegions
+          }
+        })
       }
     }
     
     const handleGlobalPointerUp = () => {
       setDraggingPoint(null)
-      dragStartPoint.current = null
-      dragStartValue.current = null
+      dragStartMouse.current = null
+      dragStartA.current = null
+      dragStartB.current = null
+      dragStartRadius.current = null
+      dragStartRadiusA.current = null
+      dragStartRadiusB.current = null
       if (controlsRef.current) {
         controlsRef.current.enabled = true
       }
@@ -367,14 +486,15 @@ function InitializationRegionCylinder({ region, isSelected, regionIndex, control
       window.removeEventListener('pointermove', handleGlobalPointerMove)
       window.removeEventListener('pointerup', handleGlobalPointerUp)
     }
-  }, [draggingPoint, camera, raycaster, gl, configData, setConfigData, region, regionIndex, controlsRef])
+  }, [draggingPoint, camera, raycaster, gl, configData, setConfigData, region, regionIndex, controlsRef, axisDir, perp1, perp2, radius, radiusA, radiusB, a, b])
   
   const handlePointerDownA = (event: any) => {
     event.stopPropagation()
     
     const intersectionPoint = event.point as THREE.Vector3
-    dragStartPoint.current = intersectionPoint.clone()
-    dragStartValue.current = [...a] as [number, number, number]
+    dragStartMouse.current = intersectionPoint.clone()
+    dragStartA.current = [...a] as [number, number, number]
+    dragStartB.current = [...b] as [number, number, number]
     
     if (controlsRef.current) {
       controlsRef.current.enabled = false
@@ -386,13 +506,31 @@ function InitializationRegionCylinder({ region, isSelected, regionIndex, control
     event.stopPropagation()
     
     const intersectionPoint = event.point as THREE.Vector3
-    dragStartPoint.current = intersectionPoint.clone()
-    dragStartValue.current = [...b] as [number, number, number]
+    dragStartMouse.current = intersectionPoint.clone()
+    dragStartA.current = [...a] as [number, number, number]
+    dragStartB.current = [...b] as [number, number, number]
     
     if (controlsRef.current) {
       controlsRef.current.enabled = false
     }
     setDraggingPoint('b')
+  }
+  
+  const handleGizmoPointerDown = (event: any, gizmoType: string) => {
+    event.stopPropagation()
+    
+    const intersectionPoint = event.point as THREE.Vector3
+    dragStartMouse.current = intersectionPoint.clone()
+    dragStartA.current = [...a] as [number, number, number]
+    dragStartB.current = [...b] as [number, number, number]
+    dragStartRadius.current = radius
+    dragStartRadiusA.current = radiusA
+    dragStartRadiusB.current = radiusB
+    
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setDraggingPoint(gizmoType)
   }
   
   return (
@@ -437,6 +575,84 @@ function InitializationRegionCylinder({ region, isSelected, regionIndex, control
             emissiveIntensity={0.5}
           />
         </mesh>
+      )}
+      
+      {/* Gizmo arrows for point A */}
+      {isSelected && (
+        <>
+          <ArrowGizmo
+            position={[a[0], a[1], a[2]]}
+            direction={axisDir}
+            color="#ff8800"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'axis-a'}
+            isDragging={draggingPoint === 'axis-a'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'axis-a')}
+            onPointerEnter={() => setHoveredPoint('axis-a')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+          <ArrowGizmo
+            position={[a[0], a[1], a[2]]}
+            direction={perp2}
+            color="#0088ff"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'radius-uniform-a'}
+            isDragging={draggingPoint === 'radius-uniform-a'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'radius-uniform-a')}
+            onPointerEnter={() => setHoveredPoint('radius-uniform-a')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+          <ArrowGizmo
+            position={[a[0], a[1], a[2]]}
+            direction={perp1}
+            color="#ff0000"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'radius-a'}
+            isDragging={draggingPoint === 'radius-a'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'radius-a')}
+            onPointerEnter={() => setHoveredPoint('radius-a')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+        </>
+      )}
+      
+      {/* Gizmo arrows for point B */}
+      {isSelected && (
+        <>
+          <ArrowGizmo
+            position={[b[0], b[1], b[2]]}
+            direction={axisDir}
+            color="#ff8800"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'axis-b'}
+            isDragging={draggingPoint === 'axis-b'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'axis-b')}
+            onPointerEnter={() => setHoveredPoint('axis-b')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+          <ArrowGizmo
+            position={[b[0], b[1], b[2]]}
+            direction={perp2}
+            color="#0088ff"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'radius-uniform-b'}
+            isDragging={draggingPoint === 'radius-uniform-b'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'radius-uniform-b')}
+            onPointerEnter={() => setHoveredPoint('radius-uniform-b')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+          <ArrowGizmo
+            position={[b[0], b[1], b[2]]}
+            direction={perp1}
+            color="#00ff00"
+            scale={gizmoScale}
+            isHovered={hoveredPoint === 'radius-b'}
+            isDragging={draggingPoint === 'radius-b'}
+            onPointerDown={(e: any) => handleGizmoPointerDown(e, 'radius-b')}
+            onPointerEnter={() => setHoveredPoint('radius-b')}
+            onPointerLeave={() => setHoveredPoint(null)}
+          />
+        </>
       )}
     </group>
   )
