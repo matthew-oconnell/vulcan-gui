@@ -83,7 +83,74 @@ const BC_TYPES_WITH_WALL_TEMP = [
 
 ---
 
-### 4. Visualization Types
+### 4. Initialization Region Types
+**File:** `src/components/InitializationRegionDialog/InitializationRegionDialog.tsx` (lines ~8-16)
+
+**Hardcoded Array:**
+```typescript
+const INIT_REGION_TYPES = [
+  'aabb',
+  'sphere',
+  'cylinder',
+  'super ellipse frustum',
+  'converging diverging nozzle',
+  'injector',
+  'boundary layer'
+]
+```
+
+**Note on Type Aliases:**
+The schema defines aliases for some types:
+- `'aabb'`, `'box'`, and `'axis-aligned bounding-box'` are all the same type
+- The dialog uses `'aabb'` as the canonical type but accepts all three
+
+**Hardcoded Descriptions:**
+```typescript
+const INIT_REGION_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'aabb': 'Define a box (axis-aligned bounding box) and initialize that region with a constant state',
+  'sphere': 'Define a sphere and initialize that region with a constant state',
+  // ... etc
+}
+```
+
+**How to Update:**
+1. Look in schema at: `definitions["Initialization Regions"].anyOf[]`
+2. Each entry has a `$ref` pointing to an initialization region definition (e.g., `"#/definitions/Axis-Aligned Bounding Box Initialization Region"`)
+3. Each definition has a `type.enum` array with the type string(s)
+4. Add any new initialization region type strings to the `INIT_REGION_TYPES` array
+5. Add descriptions to `INIT_REGION_TYPE_DESCRIPTIONS` from each definition's `description` field
+6. Remove any deprecated initialization region types
+
+**Example from Schema:**
+```json
+"Axis-Aligned Bounding Box Initialization Region": {
+  "type": "object",
+  "description": "Define a box and initialize that region with a constant state.",
+  "required": ["state", "type", "lo", "hi"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["aabb", "box", "axis-aligned bounding-box"]  // ← These are the strings we need
+    }
+  }
+}
+```
+
+**Type-Specific Required Fields:**
+The dialog has hardcoded form fields for each initialization region type:
+- `aabb` / `box`: state, lo [x, y, z], hi [x, y, z]
+- `sphere`: state, center [x, y, z], radius
+- `cylinder`: state, a [x, y, z], b [x, y, z], radius, optional radius 2, optional align velocity
+- `super ellipse frustum`: state, inflow properties (center, a, b, n, local Y), outflow properties, isentropic initialization, mach root, align velocity
+- `converging diverging nozzle`: state, throat properties, exit properties, isentropic initialization, mach root, align velocity
+- `injector`: state, mesh boundary tags, length
+- `boundary layer`: thickness (no state required)
+
+When the schema adds new initialization region types or changes required fields, update the switch statement in `handleCreate()` and add corresponding form fields in the dialog JSX.
+
+---
+
+### 5. Visualization Types
 **File:** `src/components/VisualizationDialog/VisualizationDialog.tsx` (lines ~8-16)
 
 **Hardcoded Array:**
@@ -143,7 +210,7 @@ When the schema adds new visualization types or changes required fields, update 
 
 ---
 
-### 5. State Definition Modes
+### 6. State Definition Modes
 **File:** `src/components/EditorPanel/StateWizard.tsx`
 
 **Hardcoded Wizard Options:**
@@ -174,7 +241,7 @@ When the schema adds new visualization types or changes required fields, update 
 
 ---
 
-### 6. State Property Editor
+### 7. State Property Editor
 **File:** `src/components/EditorPanel/EditorPanel.tsx` (renderStateEditor function)
 
 **Current Fields:**
@@ -192,7 +259,7 @@ When the schema adds new visualization types or changes required fields, update 
 
 ---
 
-### 7. TypeScript Type Definitions
+### 8. TypeScript Type Definitions
 **File:** `src/types/config.ts`
 
 **Hardcoded Interfaces:**
@@ -255,12 +322,15 @@ When you get a new `input.schema.json`:
 - [ ] Update `BC_TYPES` array in EditorPanel.tsx and BoundaryConditionDialog.tsx
 - [ ] Check each BC definition for required `state` field
 - [ ] Update BC type-specific field conditionals
+- [ ] Check `Initialization Regions` anyOf array for new/removed initialization region types
+- [ ] Update `INIT_REGION_TYPES` array in InitializationRegionDialog.tsx
+- [ ] Update initialization region type-specific form fields if required fields change
 - [ ] Check `Visualization` anyOf array for new/removed visualization types
 - [ ] Update `VISUALIZATION_TYPES` array in VisualizationDialog.tsx
 - [ ] Update visualization type-specific form fields if required fields change
 - [ ] Review `State` oneOf array for new state definition modes
 - [ ] Update StateWizard options if needed
-- [ ] Test BC creation, visualization creation, and state wizard
+- [ ] Test BC creation, initialization region creation, visualization creation, and state wizard
 - [ ] Verify all form fields render correctly
 
 ---

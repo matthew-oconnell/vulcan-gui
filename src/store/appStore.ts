@@ -34,6 +34,8 @@ interface AppState {
   setSelectedState: (state: State | null) => void
   selectedViz: { data: any; index: number } | null
   setSelectedViz: (viz: { data: any; index: number } | null) => void
+  selectedInitRegion: { data: any; index: number } | null
+  setSelectedInitRegion: (region: { data: any; index: number } | null) => void
   soloBC: BoundaryCondition | null
   setSoloBC: (bc: BoundaryCondition | null) => void
   configData: ConfigData
@@ -63,15 +65,17 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   selectedNode: null,
-  setSelectedNode: (node) => set({ selectedNode: node, selectedSurface: null, selectedBC: null, selectedState: null, selectedViz: null }),
+  setSelectedNode: (node) => set({ selectedNode: node, selectedSurface: null, selectedBC: null, selectedState: null, selectedViz: null, selectedInitRegion: null }),
   selectedSurface: null,
-  setSelectedSurface: (surface) => set({ selectedSurface: surface, selectedNode: null, selectedBC: null, selectedState: null, selectedViz: null }),
+  setSelectedSurface: (surface) => set({ selectedSurface: surface, selectedNode: null, selectedBC: null, selectedState: null, selectedViz: null, selectedInitRegion: null }),
   selectedBC: null,
-  setSelectedBC: (bc) => set({ selectedBC: bc, selectedNode: null, selectedSurface: null, selectedState: null, selectedViz: null }),
+  setSelectedBC: (bc) => set({ selectedBC: bc, selectedNode: null, selectedSurface: null, selectedState: null, selectedViz: null, selectedInitRegion: null }),
   selectedState: null,
-  setSelectedState: (state) => set({ selectedState: state, selectedNode: null, selectedSurface: null, selectedBC: null, selectedViz: null }),
+  setSelectedState: (state) => set({ selectedState: state, selectedNode: null, selectedSurface: null, selectedBC: null, selectedViz: null, selectedInitRegion: null }),
   selectedViz: null,
-  setSelectedViz: (viz) => set({ selectedViz: viz, selectedNode: null, selectedSurface: null, selectedBC: null, selectedState: null }),
+  setSelectedViz: (viz) => set({ selectedViz: viz, selectedNode: null, selectedSurface: null, selectedBC: null, selectedState: null, selectedInitRegion: null }),
+  selectedInitRegion: null,
+  setSelectedInitRegion: (region) => set({ selectedInitRegion: region, selectedNode: null, selectedSurface: null, selectedBC: null, selectedState: null, selectedViz: null }),
   soloBC: null,
   setSoloBC: (bc) => set({ soloBC: bc }),
   

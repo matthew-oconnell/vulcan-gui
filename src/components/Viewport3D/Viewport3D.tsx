@@ -250,6 +250,198 @@ function ClickableSurface({
   )
 }
 
+function InitializationRegionCylinder({ region, isSelected, regionIndex, controlsRef }: { region: any; isSelected: boolean; regionIndex: number; controlsRef: React.RefObject<any> }) {
+  const { configData, setConfigData } = useAppStore()
+  const { gl, raycaster, camera } = useThree()
+  const [hoveredPoint, setHoveredPoint] = useState<'a' | 'b' | null>(null)
+  const [draggingPoint, setDraggingPoint] = useState<'a' | 'b' | null>(null)
+  const dragStartPoint = useRef<THREE.Vector3 | null>(null)
+  const dragStartValue = useRef<[number, number, number] | null>(null)
+  
+  const a = region.a || [0, 0, 0]
+  const b = region.b || [1, 0, 0]
+  const radius = region.radius || 0.5
+  
+  // Compute cylinder dimensions for widget scaling
+  const cylinderSize = useMemo(() => {
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const dz = b[2] - a[2]
+    const length = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    const maxDim = Math.max(length, radius * 2)
+    const widgetRadius = Math.max(0.0167, Math.min(0.167, maxDim * 0.0167))
+    return { length, widgetRadius }
+  }, [a, b, radius])
+  
+  // Create cylinder geometry
+  const { cylinderGeometry, position, quaternion } = useMemo(() => {
+    const start = new THREE.Vector3(a[0], a[1], a[2])
+    const end = new THREE.Vector3(b[0], b[1], b[2])
+    const direction = new THREE.Vector3().subVectors(end, start)
+    const length = direction.length()
+    
+    const pos = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
+    
+    const axis = new THREE.Vector3(0, 1, 0)
+    direction.normalize()
+    const quat = new THREE.Quaternion().setFromUnitVectors(axis, direction)
+    
+    const geom = new THREE.CylinderGeometry(radius, radius, length, 16, 1, true)
+    
+    return { cylinderGeometry: geom, position: pos, quaternion: quat }
+  }, [a, b, radius])
+  
+  // Global pointer move handler
+  useEffect(() => {
+    if (!draggingPoint || !dragStartPoint.current || !dragStartValue.current) return
+    
+    const handleGlobalPointerMove = (event: PointerEvent) => {
+      event.stopPropagation()
+      event.preventDefault()
+      
+      if (!dragStartPoint.current || !dragStartValue.current) return
+      
+      const canvas = gl.domElement
+      const rect = canvas.getBoundingClientRect()
+      const x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+      const y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+      
+      const mouse = new THREE.Vector2(x, y)
+      raycaster.setFromCamera(mouse, camera)
+      
+      const pointWorldPos = new THREE.Vector3(
+        dragStartValue.current[0],
+        dragStartValue.current[1],
+        dragStartValue.current[2]
+      )
+      
+      const cameraDir = new THREE.Vector3()
+      camera.getWorldDirection(cameraDir)
+      
+      const plane = new THREE.Plane()
+      plane.setFromNormalAndCoplanarPoint(cameraDir, pointWorldPos)
+      
+      const intersection = new THREE.Vector3()
+      raycaster.ray.intersectPlane(plane, intersection)
+      
+      if (intersection) {
+        const movement = new THREE.Vector3()
+        movement.subVectors(intersection, dragStartPoint.current)
+        
+        const newPoint: [number, number, number] = [
+          dragStartValue.current[0] + movement.x,
+          dragStartValue.current[1] + movement.y,
+          dragStartValue.current[2] + movement.z
+        ]
+        
+        if (configData.HyperSolve?.['initialization regions']) {
+          const updatedRegions = [...configData.HyperSolve['initialization regions']]
+          updatedRegions[regionIndex] = {
+            ...region,
+            [draggingPoint]: newPoint
+          }
+          setConfigData({
+            ...configData,
+            HyperSolve: {
+              ...configData.HyperSolve,
+              'initialization regions': updatedRegions
+            }
+          })
+        }
+      }
+    }
+    
+    const handleGlobalPointerUp = () => {
+      setDraggingPoint(null)
+      dragStartPoint.current = null
+      dragStartValue.current = null
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true
+      }
+    }
+    
+    window.addEventListener('pointermove', handleGlobalPointerMove)
+    window.addEventListener('pointerup', handleGlobalPointerUp)
+    
+    return () => {
+      window.removeEventListener('pointermove', handleGlobalPointerMove)
+      window.removeEventListener('pointerup', handleGlobalPointerUp)
+    }
+  }, [draggingPoint, camera, raycaster, gl, configData, setConfigData, region, regionIndex, controlsRef])
+  
+  const handlePointerDownA = (event: any) => {
+    event.stopPropagation()
+    
+    const intersectionPoint = event.point as THREE.Vector3
+    dragStartPoint.current = intersectionPoint.clone()
+    dragStartValue.current = [...a] as [number, number, number]
+    
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setDraggingPoint('a')
+  }
+  
+  const handlePointerDownB = (event: any) => {
+    event.stopPropagation()
+    
+    const intersectionPoint = event.point as THREE.Vector3
+    dragStartPoint.current = intersectionPoint.clone()
+    dragStartValue.current = [...b] as [number, number, number]
+    
+    if (controlsRef.current) {
+      controlsRef.current.enabled = false
+    }
+    setDraggingPoint('b')
+  }
+  
+  return (
+    <group>
+      <mesh position={position} quaternion={quaternion} geometry={cylinderGeometry}>
+        <meshStandardMaterial 
+          color={isSelected ? 0x00ff00 : 0x00aaff}
+          wireframe={!isSelected}
+          transparent
+          opacity={isSelected ? 0.3 : 0.8}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+      
+      {isSelected && (
+        <mesh
+          position={[a[0], a[1], a[2]]}
+          onPointerDown={handlePointerDownA}
+          onPointerEnter={() => setHoveredPoint('a')}
+          onPointerLeave={() => setHoveredPoint(null)}
+        >
+          <sphereGeometry args={[cylinderSize.widgetRadius, 16, 16]} />
+          <meshStandardMaterial 
+            color={hoveredPoint === 'a' || draggingPoint === 'a' ? '#ffff00' : '#ff0000'}
+            emissive={hoveredPoint === 'a' || draggingPoint === 'a' ? '#ffff00' : '#ff0000'}
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      )}
+      
+      {isSelected && (
+        <mesh
+          position={[b[0], b[1], b[2]]}
+          onPointerDown={handlePointerDownB}
+          onPointerEnter={() => setHoveredPoint('b')}
+          onPointerLeave={() => setHoveredPoint(null)}
+        >
+          <sphereGeometry args={[cylinderSize.widgetRadius, 16, 16]} />
+          <meshStandardMaterial 
+            color={hoveredPoint === 'b' || draggingPoint === 'b' ? '#ffff00' : '#00ff00'}
+            emissive={hoveredPoint === 'b' || draggingPoint === 'b' ? '#ffff00' : '#00ff00'}
+            emissiveIntensity={0.5}
+          />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
 function VisualizationPlane({ viz, isSelected, vizIndex, controlsRef }: { viz: any; isSelected: boolean; vizIndex: number; controlsRef: React.RefObject<any> }) {
   const planeRef = useRef<THREE.Mesh>(null)
   const arrowRef = useRef<THREE.Group>(null)
@@ -650,7 +842,7 @@ function VisualizationLine({ viz, isSelected, vizIndex, controlsRef }: { viz: an
 
 function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surface: Surface) => void }) {
   const { scene } = useThree()
-  const { availableSurfaces, cameraSettings, selectedViz, configData } = useAppStore()
+  const { availableSurfaces, cameraSettings, selectedViz, selectedInitRegion, configData } = useAppStore()
   const controlsRef = useRef<any>(null)
   
   // Set background color
@@ -693,6 +885,19 @@ function Scene({ onSurfaceContextMenu }: { onSurfaceContextMenu: (e: any, surfac
           return <VisualizationPlane key={`viz-plane-${index}`} viz={viz} isSelected={isSelected} vizIndex={index} controlsRef={controlsRef} />
         } else if (viz.type === 'line') {
           return <VisualizationLine key={`viz-line-${index}`} viz={viz} isSelected={isSelected} vizIndex={index} controlsRef={controlsRef} />
+        }
+        return null
+      })}
+
+      {/* Render initialization regions */}
+      {configData.HyperSolve?.['initialization regions'] && configData.HyperSolve['initialization regions'].map((region: any, index: number) => {
+        const isSelected = selectedInitRegion ? selectedInitRegion.index === index : false
+        
+        // Only render if selected
+        if (!isSelected) return null
+        
+        if (region.type === 'cylinder') {
+          return <InitializationRegionCylinder key={`init-region-cylinder-${index}`} region={region} isSelected={isSelected} regionIndex={index} controlsRef={controlsRef} />
         }
         return null
       })}
@@ -748,7 +953,9 @@ function Viewport3D() {
     updateBoundaryCondition,
     deleteBoundaryCondition,
     toggleSurfaceVisibility,
-    surfaceVisibility
+    surfaceVisibility,
+    selectedInitRegion,
+    selectedViz
   } = useAppStore()
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })

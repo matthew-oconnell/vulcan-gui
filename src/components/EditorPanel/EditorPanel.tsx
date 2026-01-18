@@ -6,6 +6,7 @@ import StateWizard from './StateWizard'
 import BoundaryConditionDialog from '../BoundaryConditionDialog/BoundaryConditionDialog'
 import PropertyEditorDialog from '../PropertyEditorDialog/PropertyEditorDialog'
 import VisualizationDialog from '../VisualizationDialog/VisualizationDialog'
+import InitializationRegionDialog from '../InitializationRegionDialog/InitializationRegionDialog'
 import { loadBCTypeInfo, isBCTypeAvailable } from '../../utils/bcTypeDescriptions'
 import { calculateAreaWeightedNormal } from '../../utils/surfaceUtils'
 import './EditorPanel.css'
@@ -76,6 +77,7 @@ function EditorPanel() {
   const [showBCDialog, setShowBCDialog] = useState(false)
   const [showPropertyDialog, setShowPropertyDialog] = useState(false)
   const [showVizDialog, setShowVizDialog] = useState(false)
+  const [showInitRegionDialog, setShowInitRegionDialog] = useState(false)
   const [normalPreset, setNormalPreset] = useState<string>('custom')
   const [selectedSurfaceForNormal, setSelectedSurfaceForNormal] = useState<string>('')
   const [schema, setSchema] = useState<Schema | null>(null)
@@ -102,6 +104,8 @@ function EditorPanel() {
     selectedState,
     selectedViz,
     setSelectedViz,
+    selectedInitRegion,
+    setSelectedInitRegion,
     soloBC,
     setSoloBC,
     configData,
@@ -909,8 +913,473 @@ function EditorPanel() {
     )
   }
 
+  const renderInitializationRegionArrayEditor = () => {
+    const initRegions = configData.HyperSolve?.['initialization regions'] || []
+    
+    const handleAddInitRegion = () => {
+      setShowInitRegionDialog(true)
+    }
+    
+    return (
+      <div className="editor-content">
+        <div className="property-header">
+          <h3 className="property-title">Initialization Regions</h3>
+          <span className="property-type-badge">array</span>
+        </div>
+        
+        <p className="property-description">
+          Define regions of the domain to initialize with specific states. Common types include boxes, spheres, cylinders, and boundary layers.
+        </p>
+
+        <div className="form-section">
+          <button className="add-button" onClick={handleAddInitRegion}>
+            <Plus size={16} /> Add Initialization Region
+          </button>
+          
+          <div className="info-box">
+            {initRegions.length === 0 ? (
+              'No initialization regions defined. Click above to add one.'
+            ) : (
+              `${initRegions.length} initialization region(s) defined. Select one from the tree to edit.`
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderInitializationRegionEditor = () => {
+    if (!selectedInitRegion) return null
+    
+    const region = selectedInitRegion.data
+    const regionIndex = selectedInitRegion.index
+    
+    const handleUpdate = (updates: any) => {
+      const updatedConfig = { ...configData }
+      if (!updatedConfig.HyperSolve?.['initialization regions']) return
+      
+      updatedConfig.HyperSolve['initialization regions'][regionIndex] = {
+        ...updatedConfig.HyperSolve['initialization regions'][regionIndex],
+        ...updates
+      }
+      setConfigData(updatedConfig)
+      
+      // Update the selected region reference
+      setSelectedInitRegion({ data: updatedConfig.HyperSolve['initialization regions'][regionIndex], index: regionIndex })
+    }
+    
+    const handleDelete = () => {
+      const updatedConfig = { ...configData }
+      if (!updatedConfig.HyperSolve?.['initialization regions']) return
+      
+      updatedConfig.HyperSolve['initialization regions'].splice(regionIndex, 1)
+      setConfigData(updatedConfig)
+      setSelectedInitRegion(null)
+    }
+    
+    return (
+      <div className="editor-content">
+        <div className="property-header">
+          <h3 className="property-title">Initialization Region</h3>
+          <span className="property-type-badge">{region.type}</span>
+          <button 
+            className="icon-button delete-button"
+            onClick={handleDelete}
+            title="Delete Initialization Region"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+        
+        <div className="form-section">
+          {/* Box-specific editable fields */}
+          {region.type === 'box' && (
+            <>
+              {region.state && (
+                <div className="form-group">
+                  <label className="form-label">State</label>
+                  <div className="property-value">{region.state}</div>
+                </div>
+              )}
+              
+              <div className="form-group">
+                <label className="form-label">Lower Corner (lo) [x, y, z]</label>
+                <div className="vector-input">
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.lo?.[0] ?? 0}
+                    onChange={(e) => handleUpdate({ lo: [Number(e.target.value), region.lo[1], region.lo[2]] })}
+                    placeholder="x"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.lo?.[1] ?? 0}
+                    onChange={(e) => handleUpdate({ lo: [region.lo[0], Number(e.target.value), region.lo[2]] })}
+                    placeholder="y"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.lo?.[2] ?? 0}
+                    onChange={(e) => handleUpdate({ lo: [region.lo[0], region.lo[1], Number(e.target.value)] })}
+                    placeholder="z"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Upper Corner (hi) [x, y, z]</label>
+                <div className="vector-input">
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.hi?.[0] ?? 0}
+                    onChange={(e) => handleUpdate({ hi: [Number(e.target.value), region.hi[1], region.hi[2]] })}
+                    placeholder="x"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.hi?.[1] ?? 0}
+                    onChange={(e) => handleUpdate({ hi: [region.hi[0], Number(e.target.value), region.hi[2]] })}
+                    placeholder="y"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.hi?.[2] ?? 0}
+                    onChange={(e) => handleUpdate({ hi: [region.hi[0], region.hi[1], Number(e.target.value)] })}
+                    placeholder="z"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Snap to Bounds</label>
+                <select
+                  className="form-input"
+                  value=""
+                  onChange={(e) => {
+                    const selectedTag = Number(e.target.value)
+                    if (!selectedTag) return
+                    
+                    // Find the surface with this tag
+                    const surface = availableSurfaces.find(s => s.metadata.tag === selectedTag)
+                    if (!surface || !surface.geometry) return
+                    
+                    // Compute AABB from vertices (vertices are already in physical coordinates)
+                    const vertices = surface.geometry.vertices
+                    let minX = Infinity, minY = Infinity, minZ = Infinity
+                    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+                    
+                    for (let i = 0; i < vertices.length; i += 3) {
+                      const x = vertices[i]
+                      const y = vertices[i + 1]
+                      const z = vertices[i + 2]
+                      
+                      minX = Math.min(minX, x)
+                      minY = Math.min(minY, y)
+                      minZ = Math.min(minZ, z)
+                      maxX = Math.max(maxX, x)
+                      maxY = Math.max(maxY, y)
+                      maxZ = Math.max(maxZ, z)
+                    }
+                    
+                    // Compute box dimensions
+                    let dx = maxX - minX
+                    let dy = maxY - minY
+                    let dz = maxZ - minZ
+                    
+                    // Handle degenerate cases: ensure aspect ratio doesn't exceed 50:1
+                    const MAX_ASPECT_RATIO = 50
+                    
+                    // Find min and max dimensions
+                    let dims = [dx, dy, dz]
+                    let indices = [0, 1, 2] // x, y, z
+                    
+                    // Sort by dimension size
+                    const sorted = dims.map((d, i) => ({ dim: d, index: i })).sort((a, b) => a.dim - b.dim)
+                    
+                    // Inflate smallest dimension(s) to maintain max aspect ratio of 50:1
+                    const maxDim = sorted[2].dim
+                    const minAllowedDim = maxDim / MAX_ASPECT_RATIO
+                    
+                    // First pass: inflate the smallest dimension
+                    if (sorted[0].dim < minAllowedDim) {
+                      const inflation = (minAllowedDim - sorted[0].dim) / 2
+                      if (sorted[0].index === 0) {
+                        minX -= inflation
+                        maxX += inflation
+                        dx = maxX - minX
+                      } else if (sorted[0].index === 1) {
+                        minY -= inflation
+                        maxY += inflation
+                        dy = maxY - minY
+                      } else {
+                        minZ -= inflation
+                        maxZ += inflation
+                        dz = maxZ - minZ
+                      }
+                      
+                      // Update sorted dimensions for second pass
+                      sorted[0].dim = minAllowedDim
+                      dims = [dx, dy, dz]
+                      sorted.sort((a, b) => a.dim - b.dim)
+                    }
+                    
+                    // Second pass: check if middle dimension needs inflation after first pass
+                    const newMaxDim = Math.max(dx, dy, dz)
+                    const newMinAllowedDim = newMaxDim / MAX_ASPECT_RATIO
+                    
+                    if (sorted[1].dim < newMinAllowedDim) {
+                      const inflation = (newMinAllowedDim - sorted[1].dim) / 2
+                      if (sorted[1].index === 0) {
+                        minX -= inflation
+                        maxX += inflation
+                      } else if (sorted[1].index === 1) {
+                        minY -= inflation
+                        maxY += inflation
+                      } else {
+                        minZ -= inflation
+                        maxZ += inflation
+                      }
+                    }
+                    
+                    // Update the box bounds
+                    handleUpdate({ 
+                      lo: [minX, minY, minZ],
+                      hi: [maxX, maxY, maxZ]
+                    })
+                    
+                    // Reset the dropdown
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Select a surface...</option>
+                  {availableSurfaces.map(surface => (
+                    <option key={surface.id} value={surface.metadata.tag}>
+                      Tag {surface.metadata.tag}: {surface.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* Cylinder-specific editable fields */}
+          {region.type === 'cylinder' && (
+            <>
+              {region.state && (
+                <div className="form-group">
+                  <label className="form-label">State</label>
+                  <div className="property-value">{region.state}</div>
+                </div>
+              )}
+              
+              <div className="form-group">
+                <label className="form-label">Point A [x, y, z]</label>
+                <div className="vector-input">
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.a?.[0] ?? 0}
+                    onChange={(e) => handleUpdate({ a: [Number(e.target.value), region.a[1], region.a[2]] })}
+                    placeholder="x"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.a?.[1] ?? 0}
+                    onChange={(e) => handleUpdate({ a: [region.a[0], Number(e.target.value), region.a[2]] })}
+                    placeholder="y"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.a?.[2] ?? 0}
+                    onChange={(e) => handleUpdate({ a: [region.a[0], region.a[1], Number(e.target.value)] })}
+                    placeholder="z"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Point B [x, y, z]</label>
+                <div className="vector-input">
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.b?.[0] ?? 0}
+                    onChange={(e) => handleUpdate({ b: [Number(e.target.value), region.b[1], region.b[2]] })}
+                    placeholder="x"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.b?.[1] ?? 0}
+                    onChange={(e) => handleUpdate({ b: [region.b[0], Number(e.target.value), region.b[2]] })}
+                    placeholder="y"
+                  />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={region.b?.[2] ?? 0}
+                    onChange={(e) => handleUpdate({ b: [region.b[0], region.b[1], Number(e.target.value)] })}
+                    placeholder="z"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Radius</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={region.radius ?? 1}
+                  onChange={(e) => handleUpdate({ radius: Number(e.target.value) })}
+                  placeholder="radius"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Snap to Surface Normal</label>
+                <select
+                  className="form-input"
+                  value=""
+                  onChange={(e) => {
+                    const selectedTag = Number(e.target.value)
+                    if (!selectedTag) return
+                    
+                    // Find the surface with this tag
+                    const surface = availableSurfaces.find(s => s.metadata.tag === selectedTag)
+                    if (!surface || !surface.geometry) return
+                    
+                    // Compute centroid
+                    const vertices = surface.geometry.vertices
+                    const normals = surface.geometry.normals
+                    let sumX = 0, sumY = 0, sumZ = 0
+                    let sumNx = 0, sumNy = 0, sumNz = 0
+                    let count = 0
+                    
+                    for (let i = 0; i < vertices.length; i += 3) {
+                      sumX += vertices[i]
+                      sumY += vertices[i + 1]
+                      sumZ += vertices[i + 2]
+                      sumNx += normals[i]
+                      sumNy += normals[i + 1]
+                      sumNz += normals[i + 2]
+                      count++
+                    }
+                    
+                    const centroid: [number, number, number] = [
+                      sumX / count,
+                      sumY / count,
+                      sumZ / count
+                    ]
+                    
+                    // Average normal
+                    let avgNormal: [number, number, number] = [
+                      sumNx / count,
+                      sumNy / count,
+                      sumNz / count
+                    ]
+                    
+                    // Normalize
+                    const normalLength = Math.sqrt(avgNormal[0] * avgNormal[0] + avgNormal[1] * avgNormal[1] + avgNormal[2] * avgNormal[2])
+                    if (normalLength > 0) {
+                      avgNormal = [
+                        avgNormal[0] / normalLength,
+                        avgNormal[1] / normalLength,
+                        avgNormal[2] / normalLength
+                      ]
+                    }
+                    
+                    // Find max distance from centroid to any point
+                    let maxDist = 0
+                    for (let i = 0; i < vertices.length; i += 3) {
+                      const dx = vertices[i] - centroid[0]
+                      const dy = vertices[i + 1] - centroid[1]
+                      const dz = vertices[i + 2] - centroid[2]
+                      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+                      maxDist = Math.max(maxDist, dist)
+                    }
+                    
+                    // Set radius slightly larger than max distance
+                    const cylinderRadius = maxDist * 1.1
+                    
+                    // Set length such that diameter/length = 5
+                    // diameter = 2 * radius, so length = diameter / 5 = 2 * radius / 5
+                    const cylinderLength = (2 * cylinderRadius) / 5
+                    
+                    // Point B is in the direction of the normal from the centroid
+                    const pointB: [number, number, number] = [
+                      centroid[0] + avgNormal[0] * cylinderLength,
+                      centroid[1] + avgNormal[1] * cylinderLength,
+                      centroid[2] + avgNormal[2] * cylinderLength
+                    ]
+                    
+                    // Update the cylinder
+                    handleUpdate({ 
+                      a: centroid,
+                      b: pointB,
+                      radius: cylinderRadius
+                    })
+                    
+                    // Reset the dropdown
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Select a surface...</option>
+                  {availableSurfaces.map(surface => (
+                    <option key={surface.id} value={surface.metadata.tag}>
+                      Tag {surface.metadata.tag}: {surface.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* For other region types, show read-only properties */}
+          {region.type !== 'box' && region.type !== 'cylinder' && (
+            <>
+              <div className="property-list">
+                {Object.entries(region).map(([key, value]) => {
+                  if (key === 'type') return null // Already shown in badge
+                  
+                  let displayValue = value
+                  if (Array.isArray(value)) {
+                    displayValue = `[${value.join(', ')}]`
+                  } else if (typeof value === 'object') {
+                    displayValue = JSON.stringify(value)
+                  }
+                  
+                  return (
+                    <div key={key} className="property-item">
+                      <label className="form-label">{key}</label>
+                      <div className="property-value">{String(displayValue)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              <div className="info-box" style={{ marginTop: '16px' }}>
+                <strong>Note:</strong> To edit this initialization region, delete it and create a new one with the desired properties.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const renderEditor = () => {
-    // Priority: Viz > State > BC > Node
+    // Priority: InitRegion > Viz > State > BC > Node
+    if (selectedInitRegion) {
+      return renderInitializationRegionEditor()
+    }
     if (selectedViz) {
       return renderVisualizationEditor()
     }
@@ -932,6 +1401,10 @@ function EditorPanel() {
       // Check if this is the visualization array node
       if (selectedNode.id === 'root.visualization') {
         return renderVisualizationArrayEditor()
+      }
+      // Check if this is the initialization regions array node
+      if (selectedNode.id === 'root.HyperSolve.initialization regions') {
+        return renderInitializationRegionArrayEditor()
       }
       return renderNodeEditor()
     }
@@ -1158,6 +1631,13 @@ function EditorPanel() {
         <VisualizationDialog
           isOpen={showVizDialog}
           onClose={() => setShowVizDialog(false)}
+        />
+      )}
+
+      {showInitRegionDialog && (
+        <InitializationRegionDialog
+          isOpen={showInitRegionDialog}
+          onClose={() => setShowInitRegionDialog(false)}
         />
       )}
     </div>

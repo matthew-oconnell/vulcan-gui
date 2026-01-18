@@ -10,7 +10,7 @@ function TreePanel() {
   const [showPropertyDialog, setShowPropertyDialog] = useState(false)
   const [dialogNode, setDialogNode] = useState<TreeNode | null>(null)
   const [schema, setSchema] = useState<any>(null)
-  const { selectedNode, setSelectedNode, selectedBC, setSelectedBC, selectedState, setSelectedState, selectedViz, setSelectedViz, configData } = useAppStore()
+  const { selectedNode, setSelectedNode, selectedBC, setSelectedBC, selectedState, setSelectedState, selectedViz, setSelectedViz, selectedInitRegion, setSelectedInitRegion, configData } = useAppStore()
   const selectedId = selectedNode?.id || null
 
   useEffect(() => {
@@ -121,6 +121,28 @@ function TreePanel() {
           expanded: vizNodes.length > 0 ? true : node.expanded
         }
       }
+
+      // Check if this is the initialization regions array
+      if (node.id === 'root.HyperSolve.initialization regions' && node.type === 'array') {
+        const initRegions = configData.HyperSolve?.['initialization regions'] || []
+        
+        // Create child nodes for each initialization region instance
+        const initRegionNodes: TreeNode[] = initRegions.map((region: any, index: number) => ({
+          id: `${node.id}[InitRegion-${index}]`,
+          label: `${region.type}${region.state ? `: ${region.state}` : ''}`,
+          type: 'object' as const,
+          description: `Initialization Region: ${region.type}`,
+          initRegionData: region, // Attach the actual region data
+          initRegionIndex: index, // Store the index for updates
+          expanded: false
+        }))
+        
+        return {
+          ...node,
+          children: initRegionNodes.length > 0 ? initRegionNodes : node.children,
+          expanded: initRegionNodes.length > 0 ? true : node.expanded
+        }
+      }
       
       // Recursively enhance children
       if (node.children) {
@@ -138,12 +160,15 @@ function TreePanel() {
       const isBCNode = node.id.includes('[BC-')
       const isStateNode = node.id.includes('[State-')
       const isVizNode = node.id.includes('[Viz-')
+      const isInitRegionNode = node.id.includes('[InitRegion-')
       const isSelected = isBCNode 
         ? selectedBC && node.id.includes(selectedBC.id)
         : isStateNode
         ? selectedState && node.id.includes(selectedState.id)
         : isVizNode
         ? selectedViz && node.id.includes(`[Viz-${selectedViz.index}]`)
+        : isInitRegionNode
+        ? selectedInitRegion && node.id.includes(`[InitRegion-${selectedInitRegion.index}]`)
         : selectedId === node.id
       
       return (
@@ -158,13 +183,15 @@ function TreePanel() {
                 setSelectedState((node as any).stateData)
               } else if (isVizNode && (node as any).vizData) {
                 setSelectedViz({ data: (node as any).vizData, index: (node as any).vizIndex })
+              } else if (isInitRegionNode && (node as any).initRegionData) {
+                setSelectedInitRegion({ data: (node as any).initRegionData, index: (node as any).initRegionIndex })
               } else {
                 setSelectedNode(node)
               }
             }}
             onDoubleClick={() => {
-              // Open property dialog on double-click for object nodes (not BC/State/Viz instances)
-              if (!isBCNode && !isStateNode && !isVizNode && node.type === 'object') {
+              // Open property dialog on double-click for object nodes (not BC/State/Viz/InitRegion instances)
+              if (!isBCNode && !isStateNode && !isVizNode && !isInitRegionNode && node.type === 'object') {
                 setDialogNode(node)
                 setShowPropertyDialog(true)
               }
